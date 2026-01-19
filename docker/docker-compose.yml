@@ -1,0 +1,167 @@
+version: "3.9"
+
+# Project Management Platform - Local Development Environment
+# Usage: docker compose up -d
+
+services:
+  # ==========================================================================
+  # DATA LAYER
+  # ==========================================================================
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: pm-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: project_mgmt
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: devpass
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev -d project_mgmt"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: pm-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==========================================================================
+  # MICROSERVICES (Uncomment when services are implemented)
+  # ==========================================================================
+
+  # auth-service:
+  #   build:
+  #     context: ../backend/auth-service
+  #     dockerfile: Dockerfile
+  #   container_name: pm-auth-service
+  #   ports:
+  #     - "8001:8001"
+  #   environment:
+  #     DATABASE_URL: postgresql+asyncpg://dev:devpass@postgres:5432/project_mgmt
+  #     REDIS_URL: redis://redis:6379
+  #     JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-in-production}
+  #     JWT_ALGORITHM: HS256
+  #     ACCESS_TOKEN_EXPIRE_MINUTES: 15
+  #     REFRESH_TOKEN_EXPIRE_DAYS: 7
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
+  # project-service:
+  #   build:
+  #     context: ../backend/project-service
+  #     dockerfile: Dockerfile
+  #   container_name: pm-project-service
+  #   ports:
+  #     - "8002:8002"
+  #   environment:
+  #     DATABASE_URL: postgresql+asyncpg://dev:devpass@postgres:5432/project_mgmt
+  #     REDIS_URL: redis://redis:6379
+  #     AUTH_SERVICE_URL: http://auth-service:8001
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
+  # insights-service:
+  #   build:
+  #     context: ../backend/insights-service
+  #     dockerfile: Dockerfile
+  #   container_name: pm-insights-service
+  #   ports:
+  #     - "8003:8003"
+  #   environment:
+  #     DATABASE_URL: postgresql+asyncpg://dev:devpass@postgres:5432/project_mgmt
+  #     REDIS_URL: redis://redis:6379
+  #     AUTH_SERVICE_URL: http://auth-service:8001
+  #     PROJECT_SERVICE_URL: http://project-service:8002
+  #     OPENAI_API_KEY: ${OPENAI_API_KEY}
+  #     OPENAI_MODEL: gpt-4-turbo
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
+  # timesheet-service:
+  #   build:
+  #     context: ../backend/timesheet-service
+  #     dockerfile: Dockerfile
+  #   container_name: pm-timesheet-service
+  #   ports:
+  #     - "8004:8004"
+  #   environment:
+  #     DATABASE_URL: postgresql+asyncpg://dev:devpass@postgres:5432/project_mgmt
+  #     REDIS_URL: redis://redis:6379
+  #     AUTH_SERVICE_URL: http://auth-service:8001
+  #     PROJECT_SERVICE_URL: http://project-service:8002
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
+  # ==========================================================================
+  # FRONTEND (Uncomment when frontend is implemented)
+  # ==========================================================================
+
+  # frontend:
+  #   build:
+  #     context: ../frontend
+  #     dockerfile: Dockerfile
+  #   container_name: pm-frontend
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     VITE_API_BASE_URL: http://localhost:8000/api/v1
+  #   depends_on:
+  #     - auth-service
+  #     - project-service
+  #   restart: unless-stopped
+
+  # ==========================================================================
+  # MONITORING (Optional)
+  # ==========================================================================
+
+  # adminer:
+  #   image: adminer
+  #   container_name: pm-adminer
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     - postgres
+  #   restart: unless-stopped
+
+volumes:
+  pgdata:
+    name: pm-pgdata
+  redisdata:
+    name: pm-redisdata
+
+networks:
+  default:
+    name: pm-network

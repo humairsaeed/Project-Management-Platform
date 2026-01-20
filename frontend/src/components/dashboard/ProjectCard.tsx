@@ -1,12 +1,25 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight } from 'lucide-react'
-import type { ProjectSnapshotSummary } from '../../types/project'
+import { ArrowRight, ExternalLink } from 'lucide-react'
 
-interface ProjectCardProps {
-  project: ProjectSnapshotSummary
+interface ProjectCardProject {
+  id: string
+  name: string
+  description?: string
+  completionPercentage: number
+  status: string
+  riskLevel: string
+  daysUntilDeadline?: number
+  priority: string
+  manager?: string
+  team?: string
 }
 
-export default function ProjectCard({ project }: ProjectCardProps) {
+interface ProjectCardProps {
+  project: ProjectCardProject
+  onClick?: () => void
+}
+
+export default function ProjectCard({ project, onClick }: ProjectCardProps) {
   const priorityColors: Record<string, string> = {
     low: 'text-slate-400',
     medium: 'text-blue-400',
@@ -15,7 +28,12 @@ export default function ProjectCard({ project }: ProjectCardProps) {
   }
 
   return (
-    <div className="card hover:border-slate-600 transition-colors">
+    <div
+      onClick={onClick}
+      className={`card hover:border-slate-600 transition-colors ${
+        onClick ? 'cursor-pointer' : ''
+      }`}
+    >
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
@@ -24,6 +42,13 @@ export default function ProjectCard({ project }: ProjectCardProps) {
               {project.priority.toUpperCase()}
             </span>
           </div>
+
+          {/* Description */}
+          {project.description && (
+            <p className="text-sm text-slate-400 mb-3 line-clamp-2">
+              {project.description}
+            </p>
+          )}
 
           {/* Progress */}
           <div className="flex items-center gap-3 mb-3">
@@ -40,19 +65,36 @@ export default function ProjectCard({ project }: ProjectCardProps) {
 
           {/* Meta */}
           <div className="flex items-center gap-4 text-sm text-slate-500">
-            <span>Status: {project.status}</span>
+            <span className="capitalize">Status: {project.status}</span>
+            {project.manager && <span>PM: {project.manager}</span>}
             {project.daysUntilDeadline !== undefined && (
               <span>{project.daysUntilDeadline} days left</span>
             )}
           </div>
         </div>
 
-        <Link
-          to={`/projects/${project.id}`}
-          className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-        >
-          <ArrowRight size={18} />
-        </Link>
+        <div className="flex flex-col gap-2">
+          {onClick && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onClick()
+              }}
+              className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+              title="View Details"
+            >
+              <ExternalLink size={18} />
+            </button>
+          )}
+          <Link
+            to={`/projects/${project.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+            title="Go to Project"
+          >
+            <ArrowRight size={18} />
+          </Link>
+        </div>
       </div>
     </div>
   )

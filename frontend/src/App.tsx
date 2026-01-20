@@ -5,7 +5,7 @@ import ProjectsPage from './pages/ProjectsPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import KanbanPage from './pages/KanbanPage'
 import GanttPage from './pages/GanttPage'
-import TimesheetsPage from './pages/TimesheetsPage'
+import SettingsPage from './pages/SettingsPage'
 import LoginPage from './pages/LoginPage'
 import { useAuthStore } from './store/authSlice'
 
@@ -39,7 +39,7 @@ function App() {
           <Route path="projects/:projectId" element={<ProjectDetailPage />} />
           <Route path="projects/:projectId/kanban" element={<KanbanPage />} />
           <Route path="projects/:projectId/gantt" element={<GanttPage />} />
-          <Route path="timesheets" element={<TimesheetsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -1,46 +1,102 @@
-import type { ProjectSnapshotSummary } from '../../types/project'
+import { ChevronRight, User, Users } from 'lucide-react'
 
-interface PortfolioOverviewProps {
-  projects: ProjectSnapshotSummary[]
+interface ProjectWithDescription {
+  id: string
+  name: string
+  description?: string
+  completionPercentage: number
+  status: string
+  riskLevel: string
+  daysUntilDeadline?: number
+  priority: string
+  manager?: string
+  team?: string
 }
 
-export default function PortfolioOverview({ projects }: PortfolioOverviewProps) {
+interface PortfolioOverviewProps {
+  projects: ProjectWithDescription[]
+  onProjectClick?: (projectId: string) => void
+}
+
+export default function PortfolioOverview({ projects, onProjectClick }: PortfolioOverviewProps) {
   return (
     <div className="card">
       <h2 className="text-lg font-semibold text-white mb-4">Portfolio Overview</h2>
 
       <div className="space-y-4">
         {projects.map((project) => (
-          <div key={project.id} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-white font-medium">{project.name}</span>
-                <RiskBadge level={project.riskLevel} />
+          <div
+            key={project.id}
+            onClick={() => onProjectClick?.(project.id)}
+            className={`p-4 -mx-4 rounded-lg transition-all ${
+              onProjectClick
+                ? 'cursor-pointer hover:bg-slate-700/50'
+                : ''
+            }`}
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-white font-medium">{project.name}</span>
+                  <RiskBadge level={project.riskLevel} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 text-sm">
+                    {project.completionPercentage}%
+                  </span>
+                  {onProjectClick && (
+                    <ChevronRight size={16} className="text-slate-500" />
+                  )}
+                </div>
               </div>
-              <span className="text-slate-400 text-sm">
-                {project.completionPercentage}%
-              </span>
-            </div>
 
-            {/* Progress bar */}
-            <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${getProgressColor(
-                  project.completionPercentage,
-                  project.riskLevel
-                )}`}
-                style={{ width: `${project.completionPercentage}%` }}
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-xs text-slate-500">
-              <span>Priority: {project.priority}</span>
-              {project.daysUntilDeadline !== undefined && (
-                <span>{project.daysUntilDeadline} days remaining</span>
+              {/* Description */}
+              {project.description && (
+                <p className="text-sm text-slate-400 line-clamp-2">
+                  {project.description}
+                </p>
               )}
+
+              {/* Progress bar */}
+              <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${getProgressColor(
+                    project.completionPercentage,
+                    project.riskLevel
+                  )}`}
+                  style={{ width: `${project.completionPercentage}%` }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <div className="flex items-center gap-4">
+                  <span className="capitalize">Priority: {project.priority}</span>
+                  {project.manager && (
+                    <span className="flex items-center gap-1">
+                      <User size={12} />
+                      {project.manager}
+                    </span>
+                  )}
+                  {project.team && (
+                    <span className="flex items-center gap-1">
+                      <Users size={12} />
+                      {project.team}
+                    </span>
+                  )}
+                </div>
+                {project.daysUntilDeadline !== undefined && (
+                  <span>{project.daysUntilDeadline} days remaining</span>
+                )}
+              </div>
             </div>
           </div>
         ))}
+
+        {projects.length === 0 && (
+          <div className="text-center py-8 text-slate-400">
+            No projects to display
+          </div>
+        )}
       </div>
     </div>
   )

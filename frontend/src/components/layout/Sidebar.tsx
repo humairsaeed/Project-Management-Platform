@@ -2,7 +2,6 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
   FolderKanban,
-  Clock,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -12,7 +11,6 @@ import { useUIStore } from '../../store/uiSlice'
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/projects', label: 'Projects', icon: FolderKanban },
-  { path: '/timesheets', label: 'Timesheets', icon: Clock },
   { path: '/settings', label: 'Settings', icon: Settings },
 ]
 

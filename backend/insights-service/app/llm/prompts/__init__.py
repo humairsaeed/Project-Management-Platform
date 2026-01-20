@@ -1,0 +1,11 @@
+"""Prompt Templates for AI Analysis"""
+
+from .executive_summary import EXECUTIVE_SUMMARY_TEMPLATE, EXECUTIVE_SUMMARY_SYSTEM
+from .risk_assessment import RISK_ASSESSMENT_TEMPLATE, RISK_ASSESSMENT_SYSTEM
+
+__all__ = [
+    "EXECUTIVE_SUMMARY_TEMPLATE",
+    "EXECUTIVE_SUMMARY_SYSTEM",
+    "RISK_ASSESSMENT_TEMPLATE",
+    "RISK_ASSESSMENT_SYSTEM",
+]

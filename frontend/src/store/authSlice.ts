@@ -1,0 +1,60 @@
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+interface User {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  roles: string[]
+  teams: string[]
+}
+
+interface AuthState {
+  user: User | null
+  accessToken: string | null
+  isAuthenticated: boolean
+  login: (user: User, accessToken: string) => void
+  logout: () => void
+  hasRole: (role: string) => boolean
+}
+
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
+      user: null,
+      accessToken: null,
+      isAuthenticated: false,
+
+      login: (user, accessToken) => {
+        set({
+          user,
+          accessToken,
+          isAuthenticated: true,
+        })
+      },
+
+      logout: () => {
+        set({
+          user: null,
+          accessToken: null,
+          isAuthenticated: false,
+        })
+      },
+
+      hasRole: (role) => {
+        const user = get().user
+        if (!user) return false
+        return user.roles.includes(role) || user.roles.includes('admin')
+      },
+    }),
+    {
+      name: 'auth-storage',
+      partialize: (state) => ({
+        user: state.user,
+        accessToken: state.accessToken,
+        isAuthenticated: state.isAuthenticated,
+      }),
+    }
+  )
+)

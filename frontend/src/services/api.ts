@@ -1,7 +1,9 @@
 import axios from 'axios'
 import { useAuthStore } from '../store/authSlice'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
+// In Docker: use relative path (nginx proxies to services)
+// In dev: use localhost:8000 where nginx runs
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
 export const api = axios.create({
   baseURL: API_BASE_URL,

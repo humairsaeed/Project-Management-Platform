@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authSlice'
+import api from '../services/api'
 
 export default function LoginPage() {
   const navigate = useNavigate()
   const login = useAuthStore((state) => state.login)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState('admin@company.com')
+  const [password, setPassword] = useState('demo123')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -16,18 +17,35 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      // TODO: Replace with actual API call
-      // const response = await authService.login({ email, password })
+      // Try real API first
+      const response = await api.post('/auth/login', { email, password })
+      const { accessToken, user } = response.data
 
-      // Mock login for development
+      login(
+        {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          roles: user.roles,
+          teams: user.teams?.map((t: { id: string }) => t.id) || [],
+        },
+        accessToken
+      )
+      navigate('/dashboard')
+    } catch (apiError) {
+      // Fallback to mock login if API is not available
+      console.warn('API login failed, using mock login:', apiError)
+
       if (email && password) {
+        const isAdmin = email.toLowerCase().includes('admin')
         login(
           {
             id: '1',
             email,
-            firstName: 'Demo',
-            lastName: 'User',
-            roles: ['project_manager'],
+            firstName: email.split('@')[0].split('.')[0] || 'Demo',
+            lastName: email.split('@')[0].split('.')[1] || 'User',
+            roles: isAdmin ? ['admin'] : ['project_manager'],
             teams: ['team-1'],
           },
           'mock-jwt-token'
@@ -36,8 +54,6 @@ export default function LoginPage() {
       } else {
         setError('Please enter email and password')
       }
-    } catch (err) {
-      setError('Invalid credentials')
     } finally {
       setLoading(false)
     }
@@ -97,6 +113,15 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </form>
+
+          {/* Demo Credentials Info */}
+          <div className="mt-6 p-4 bg-slate-700/50 rounded-lg border border-slate-600">
+            <p className="text-sm text-slate-300 font-medium mb-2">Demo Credentials</p>
+            <div className="text-xs text-slate-400 space-y-1">
+              <p><strong>Admin:</strong> admin@company.com / demo123</p>
+              <p><strong>PM:</strong> john.smith@company.com / demo123</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 """
 Auth Service - FastAPI Application Entry Point
 """
+from __future__ import annotations
 import os
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +10,7 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from typing import Optional
+from typing import Optional, List, Dict
 
 # Configuration
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "super-secret-key-change-in-production")
@@ -38,12 +39,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Pre-hashed password for "demo123" - bcrypt hash
+# This avoids CPU-intensive hashing at startup
+DEMO_PASSWORD_HASH = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYq0cqvZqIHi"
+
 # Mock user database (replace with actual DB in production)
 MOCK_USERS = {
     "admin@company.com": {
         "id": "00000000-0000-0000-0000-000000000001",
         "email": "admin@company.com",
-        "password_hash": pwd_context.hash("demo123"),
+        "password_hash": DEMO_PASSWORD_HASH,
         "firstName": "System",
         "lastName": "Admin",
         "roles": ["admin"],
@@ -52,7 +57,7 @@ MOCK_USERS = {
     "john.smith@company.com": {
         "id": "00000000-0000-0000-0000-000000000002",
         "email": "john.smith@company.com",
-        "password_hash": pwd_context.hash("demo123"),
+        "password_hash": DEMO_PASSWORD_HASH,
         "firstName": "John",
         "lastName": "Smith",
         "roles": ["project_manager"],
@@ -61,7 +66,7 @@ MOCK_USERS = {
     "sarah.jones@company.com": {
         "id": "00000000-0000-0000-0000-000000000003",
         "email": "sarah.jones@company.com",
-        "password_hash": pwd_context.hash("demo123"),
+        "password_hash": DEMO_PASSWORD_HASH,
         "firstName": "Sarah",
         "lastName": "Jones",
         "roles": ["project_manager"],

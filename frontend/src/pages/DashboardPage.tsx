@@ -5,17 +5,34 @@ import MilestoneTimeline from '../components/dashboard/MilestoneTimeline'
 import ProjectDetailModal from '../components/projects/ProjectDetailModal'
 import { useDashboardStore } from '../store/dashboardSlice'
 
+type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
+type ProjectStatus = 'active' | 'completed' | 'on_hold'
+type Priority = 'low' | 'medium' | 'high' | 'critical'
+
+interface MockProject {
+  id: string
+  name: string
+  description: string
+  completionPercentage: number
+  status: ProjectStatus
+  riskLevel: RiskLevel
+  daysUntilDeadline: number
+  priority: Priority
+  manager: string
+  team: string
+}
+
 // Mock data for initial development
-const mockProjects = [
+const mockProjects: MockProject[] = [
   {
     id: '1',
     name: 'Vulnerabilities Remediation',
     description: 'Address critical security vulnerabilities across production systems including patch management, configuration hardening, and penetration testing remediation.',
     completionPercentage: 65,
-    status: 'active' as const,
-    riskLevel: 'medium' as const,
+    status: 'active',
+    riskLevel: 'medium',
     daysUntilDeadline: 30,
-    priority: 'high' as const,
+    priority: 'high',
     manager: 'John Smith',
     team: 'Security',
   },
@@ -24,10 +41,10 @@ const mockProjects = [
     name: 'Cloud Migration Planning',
     description: 'Plan and execute migration of on-premises infrastructure to Azure cloud including assessment, architecture design, and pilot migrations.',
     completionPercentage: 70,
-    status: 'active' as const,
-    riskLevel: 'low' as const,
+    status: 'active',
+    riskLevel: 'low',
     daysUntilDeadline: 60,
-    priority: 'high' as const,
+    priority: 'high',
     manager: 'Sarah Jones',
     team: 'Cloud Services',
   },
@@ -36,10 +53,10 @@ const mockProjects = [
     name: 'WAF/API Security',
     description: 'Implement Web Application Firewall and API Gateway security controls to protect public-facing applications and services.',
     completionPercentage: 65,
-    status: 'active' as const,
-    riskLevel: 'medium' as const,
+    status: 'active',
+    riskLevel: 'medium',
     daysUntilDeadline: 45,
-    priority: 'critical' as const,
+    priority: 'critical',
     manager: 'Mike Wilson',
     team: 'Security',
   },
@@ -48,10 +65,10 @@ const mockProjects = [
     name: 'Tape Library & Backup Replacements',
     description: 'Replace aging tape library infrastructure with modern backup solutions including disk-based backup and cloud archival integration.',
     completionPercentage: 20,
-    status: 'active' as const,
-    riskLevel: 'low' as const,
+    status: 'active',
+    riskLevel: 'low',
     daysUntilDeadline: 120,
-    priority: 'medium' as const,
+    priority: 'medium',
     manager: 'Emily Chen',
     team: 'IT Infrastructure',
   },

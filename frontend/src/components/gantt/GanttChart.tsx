@@ -1,5 +1,3 @@
-import { useState } from 'react'
-
 interface GanttChartProps {
   projectId: string
 }
@@ -69,9 +67,7 @@ const milestones = [
   { id: 'm2', name: 'Project Complete', date: '2025-03-05' },
 ]
 
-export default function GanttChart({ projectId: _projectId }: GanttChartProps) {
-  const [_zoomLevel] = useState<'day' | 'week' | 'month'>('week')
-
+export default function GanttChart(_props: GanttChartProps) {
   // Generate weeks for header
   const weeks = [
     'Jan 6', 'Jan 13', 'Jan 20', 'Jan 27',

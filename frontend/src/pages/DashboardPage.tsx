@@ -1,10 +1,9 @@
-import { useState } from 'react'
 import { TrendingUp, FolderCheck, AlertTriangle, Clock, X } from 'lucide-react'
 import PortfolioOverview from '../components/dashboard/PortfolioOverview'
 import ProjectCard from '../components/dashboard/ProjectCard'
 import MilestoneTimeline from '../components/dashboard/MilestoneTimeline'
 import ProjectDetailModal from '../components/projects/ProjectDetailModal'
-import { useDashboardStore, type DashboardFilter } from '../store/dashboardSlice'
+import { useDashboardStore } from '../store/dashboardSlice'
 
 // Mock data for initial development
 const mockProjects = [

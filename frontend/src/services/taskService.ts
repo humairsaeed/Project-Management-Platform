@@ -1,5 +1,5 @@
 import api from './api'
-import type { Task, TaskCard, KanbanBoard } from '../types/task'
+import type { Task, KanbanBoard } from '../types/task'
 
 export const taskService = {
   /**

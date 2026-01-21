@@ -124,7 +124,7 @@ const columns: { status: TaskStatus; title: string }[] = [
   { status: 'done', title: 'Done' },
 ]
 
-export default function KanbanBoard({ projectId }: KanbanBoardProps) {
+export default function KanbanBoard({ projectId: _projectId }: KanbanBoardProps) {
   const [tasks] = useState(mockTasks)
 
   return (

@@ -69,8 +69,8 @@ const milestones = [
   { id: 'm2', name: 'Project Complete', date: '2025-03-05' },
 ]
 
-export default function GanttChart({ projectId }: GanttChartProps) {
-  const [zoomLevel] = useState<'day' | 'week' | 'month'>('week')
+export default function GanttChart({ projectId: _projectId }: GanttChartProps) {
+  const [_zoomLevel] = useState<'day' | 'week' | 'month'>('week')
 
   // Generate weeks for header
   const weeks = [

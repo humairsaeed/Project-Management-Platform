@@ -1,34 +1,21 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Clock, User, FileText, ArrowRight, Filter, ChevronDown, ChevronUp } from 'lucide-react'
+import type { AuditLogEntry } from '../projects/ProjectDetailModal'
 
-interface AuditLogEntry {
-  id: string
-  userId: string
-  userEmail: string
-  userName: string
-  tableName: string
-  recordId: string
-  recordName: string
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE'
-  oldValue: Record<string, unknown> | null
-  newValue: Record<string, unknown> | null
-  changedFields: string[]
-  createdAt: string
-}
-
-const mockAuditLogs: AuditLogEntry[] = [
+// Initial mock audit logs for the project
+const initialMockAuditLogs: AuditLogEntry[] = [
   {
     id: '1',
     userId: '1',
     userEmail: 'john.smith@company.com',
     userName: 'John Smith',
     tableName: 'projects.tasks',
-    recordId: 'task-1',
-    recordName: 'Configure WAF rules',
+    recordId: '1',
+    recordName: 'WAF Rule Design',
     action: 'STATUS_CHANGE',
-    oldValue: { status: 'in_progress', completion_percentage: 50 },
-    newValue: { status: 'done', completion_percentage: 100 },
-    changedFields: ['status', 'completion_percentage'],
+    oldValue: { status: 'in_progress', progress: 80 },
+    newValue: { status: 'done', progress: 100 },
+    changedFields: ['status', 'progress'],
     createdAt: '2025-01-20T14:30:00Z',
   },
   {
@@ -37,12 +24,12 @@ const mockAuditLogs: AuditLogEntry[] = [
     userEmail: 'sarah.jones@company.com',
     userName: 'Sarah Jones',
     tableName: 'projects.tasks',
-    recordId: 'task-2',
+    recordId: '1',
     recordName: 'API Gateway Integration',
     action: 'UPDATE',
-    oldValue: { assigned_to: 'Mike Wilson', estimated_hours: 20 },
-    newValue: { assigned_to: 'Emily Chen', estimated_hours: 24 },
-    changedFields: ['assigned_to', 'estimated_hours'],
+    oldValue: { assignees: 'Mike Wilson' },
+    newValue: { assignees: 'Emily Chen' },
+    changedFields: ['assignees'],
     createdAt: '2025-01-20T13:15:00Z',
   },
   {
@@ -50,14 +37,14 @@ const mockAuditLogs: AuditLogEntry[] = [
     userId: '1',
     userEmail: 'john.smith@company.com',
     userName: 'John Smith',
-    tableName: 'projects.milestones',
-    recordId: 'milestone-1',
-    recordName: 'Production Deployment',
+    tableName: 'projects.tasks',
+    recordId: '1',
+    recordName: 'Test Environment Setup',
     action: 'STATUS_CHANGE',
-    oldValue: { status: 'pending' },
-    newValue: { status: 'achieved' },
+    oldValue: { status: 'in_progress' },
+    newValue: { status: 'done' },
     changedFields: ['status'],
-    createdAt: '2025-01-20T11:00:00Z',
+    createdAt: '2025-01-19T11:00:00Z',
   },
   {
     id: '4',
@@ -65,47 +52,51 @@ const mockAuditLogs: AuditLogEntry[] = [
     userEmail: 'mike.wilson@company.com',
     userName: 'Mike Wilson',
     tableName: 'projects.tasks',
-    recordId: 'task-3',
-    recordName: 'Security Testing Plan',
+    recordId: '1',
+    recordName: 'Security Testing',
     action: 'CREATE',
     oldValue: null,
-    newValue: { title: 'Security Testing Plan', status: 'todo', estimated_hours: 16 },
+    newValue: { title: 'Security Testing', status: 'todo', progress: 0 },
     changedFields: [],
-    createdAt: '2025-01-20T09:45:00Z',
+    createdAt: '2025-01-18T09:45:00Z',
   },
   {
     id: '5',
     userId: '2',
     userEmail: 'sarah.jones@company.com',
     userName: 'Sarah Jones',
-    tableName: 'projects.projects',
-    recordId: 'project-1',
-    recordName: 'WAF/API Security',
+    tableName: 'projects.tasks',
+    recordId: '1',
+    recordName: 'API Inventory',
     action: 'UPDATE',
-    oldValue: { completion_percentage: 60 },
-    newValue: { completion_percentage: 65 },
-    changedFields: ['completion_percentage'],
-    createdAt: '2025-01-19T16:30:00Z',
+    oldValue: { progress: 60 },
+    newValue: { progress: 100 },
+    changedFields: ['progress'],
+    createdAt: '2025-01-17T16:30:00Z',
   },
 ]
 
 interface Props {
-  recordId?: string
-  tableName?: string
+  projectId?: string
+  externalLogs?: AuditLogEntry[]
 }
 
-export default function AuditTrail({ recordId, tableName }: Props) {
-  const [logs] = useState<AuditLogEntry[]>(
-    recordId && tableName
-      ? mockAuditLogs.filter((log) => log.recordId === recordId && log.tableName === tableName)
-      : mockAuditLogs
-  )
-  const [expandedLog, setExpandedLog] = useState<string | null>(null)
+export default function AuditTrail({ projectId, externalLogs = [] }: Props) {
   const [actionFilter, setActionFilter] = useState<string>('all')
+  const [expandedLog, setExpandedLog] = useState<string | null>(null)
 
-  const filteredLogs = logs.filter(
-    (log) => actionFilter === 'all' || log.action === actionFilter
-  )
+  // Combine external logs (from live edits) with mock data
+  const allLogs = useMemo(() => {
+    const combined = [...externalLogs, ...initialMockAuditLogs]
+    // Sort by date, most recent first
+    return combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  }, [externalLogs])
+
+  const filteredLogs = useMemo(() => {
+    return allLogs.filter(
+      (log) => actionFilter === 'all' || log.action === actionFilter
+    )
+  }, [allLogs, actionFilter])
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -149,28 +140,26 @@ export default function AuditTrail({ recordId, tableName }: Props) {
 
   return (
     <div className="space-y-6">
-      {!recordId && (
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-white">Audit Trail</h2>
-            <p className="text-sm text-slate-400">Track all changes made in the system</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-slate-400" />
-            <select
-              value={actionFilter}
-              onChange={(e) => setActionFilter(e.target.value)}
-              className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-sm text-white focus:outline-none focus:border-primary-500"
-            >
-              <option value="all">All Actions</option>
-              <option value="CREATE">Created</option>
-              <option value="UPDATE">Updated</option>
-              <option value="DELETE">Deleted</option>
-              <option value="STATUS_CHANGE">Status Changes</option>
-            </select>
-          </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Change History</h2>
+          <p className="text-sm text-slate-400">Track all changes made to this project</p>
         </div>
-      )}
+        <div className="flex items-center gap-2">
+          <Filter size={16} className="text-slate-400" />
+          <select
+            value={actionFilter}
+            onChange={(e) => setActionFilter(e.target.value)}
+            className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-sm text-white focus:outline-none focus:border-primary-500"
+          >
+            <option value="all">All Actions</option>
+            <option value="CREATE">Created</option>
+            <option value="UPDATE">Updated</option>
+            <option value="DELETE">Deleted</option>
+            <option value="STATUS_CHANGE">Status Changes</option>
+          </select>
+        </div>
+      </div>
 
       <div className="space-y-3">
         {filteredLogs.map((log) => (

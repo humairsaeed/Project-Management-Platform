@@ -81,7 +81,7 @@ interface Props {
   externalLogs?: AuditLogEntry[]
 }
 
-export default function AuditTrail({ projectId, externalLogs = [] }: Props) {
+export default function AuditTrail({ projectId: _projectId, externalLogs = [] }: Props) {
   const [actionFilter, setActionFilter] = useState<string>('all')
   const [expandedLog, setExpandedLog] = useState<string | null>(null)
 

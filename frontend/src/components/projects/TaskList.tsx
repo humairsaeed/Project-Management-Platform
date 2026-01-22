@@ -279,6 +279,7 @@ function TaskRow({
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDragHandleActive, setIsDragHandleActive] = useState(false)
 
   useEffect(() => {
     setEditedTask(task)
@@ -326,13 +327,19 @@ function TaskRow({
     }
   }
 
+  // Handle drag end - reset drag handle state
+  const handleDragEndInternal = (e: React.DragEvent) => {
+    setIsDragHandleActive(false)
+    onDragEnd(e)
+  }
+
   return (
     <div
-      draggable={!isEditing}
+      draggable={isDragHandleActive && !isEditing}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
-      onDragEnd={onDragEnd}
+      onDragEnd={handleDragEndInternal}
       style={{ zIndex: isExpanded ? 100 : zIndex }}
       className={`relative bg-slate-800/50 rounded-lg border transition-all duration-300 ease-out
         ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
@@ -351,13 +358,28 @@ function TaskRow({
       )}
 
       <div
-        className="flex items-center gap-3 p-4 cursor-pointer"
-        onClick={onToggleExpand}
+        className="flex items-center gap-3 p-4 cursor-pointer select-none"
+        onClick={(e) => {
+          // Only toggle expand if not clicking on drag handle
+          if (!isDragHandleActive) {
+            onToggleExpand()
+          }
+        }}
       >
-        {/* Drag handle */}
+        {/* Drag handle - only this makes the row draggable */}
         <div
           className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-300 transition-colors p-1 rounded hover:bg-slate-700/50"
-          onMouseDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => {
+            e.stopPropagation()
+            setIsDragHandleActive(true)
+          }}
+          onMouseUp={() => setIsDragHandleActive(false)}
+          onMouseLeave={() => {
+            // Only reset if not currently dragging
+            if (!isDragging) {
+              setIsDragHandleActive(false)
+            }
+          }}
         >
           <GripVertical size={16} />
         </div>

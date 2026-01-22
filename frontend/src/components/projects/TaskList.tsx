@@ -66,8 +66,12 @@ export default function TaskList({
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     setDraggedTask(taskId)
     e.dataTransfer.effectAllowed = 'move'
-    const target = e.target as HTMLElement
-    target.style.opacity = '0.5'
+    // Find the parent task row for visual feedback
+    const handle = e.target as HTMLElement
+    const taskRow = handle.closest('.bg-slate-800\\/50') as HTMLElement
+    if (taskRow) {
+      taskRow.style.opacity = '0.5'
+    }
   }
 
   const handleDragOver = (e: React.DragEvent, taskId: string) => {
@@ -88,8 +92,12 @@ export default function TaskList({
   }
 
   const handleDragEnd = (e: React.DragEvent) => {
-    const target = e.target as HTMLElement
-    target.style.opacity = '1'
+    // Find the parent task row and reset opacity
+    const handle = e.target as HTMLElement
+    const taskRow = handle.closest('.bg-slate-800\\/50') as HTMLElement
+    if (taskRow) {
+      taskRow.style.opacity = '1'
+    }
 
     if (draggedTask && dragOverTask && onTaskReorder) {
       onTaskReorder(draggedTask, dragOverTask)
@@ -279,7 +287,6 @@ function TaskRow({
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [isDragHandleActive, setIsDragHandleActive] = useState(false)
 
   useEffect(() => {
     setEditedTask(task)
@@ -327,19 +334,20 @@ function TaskRow({
     }
   }
 
-  // Handle drag end - reset drag handle state
-  const handleDragEndInternal = (e: React.DragEvent) => {
-    setIsDragHandleActive(false)
-    onDragEnd(e)
+  // Handle row click - toggle expand
+  const handleRowClick = (e: React.MouseEvent) => {
+    // Check if click originated from drag handle
+    const target = e.target as HTMLElement
+    if (target.closest('[data-drag-handle]')) {
+      return // Don't toggle if clicking drag handle
+    }
+    onToggleExpand()
   }
 
   return (
     <div
-      draggable={isDragHandleActive && !isEditing}
-      onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
-      onDragEnd={handleDragEndInternal}
       style={{ zIndex: isExpanded ? 100 : zIndex }}
       className={`relative bg-slate-800/50 rounded-lg border transition-all duration-300 ease-out
         ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
@@ -359,27 +367,15 @@ function TaskRow({
 
       <div
         className="flex items-center gap-3 p-4 cursor-pointer select-none"
-        onClick={() => {
-          // Only toggle expand if not clicking on drag handle
-          if (!isDragHandleActive) {
-            onToggleExpand()
-          }
-        }}
+        onClick={handleRowClick}
       >
-        {/* Drag handle - only this makes the row draggable */}
+        {/* Drag handle - only this element is draggable */}
         <div
+          data-drag-handle
+          draggable={!isEditing}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
           className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-300 transition-colors p-1 rounded hover:bg-slate-700/50"
-          onMouseDown={(e) => {
-            e.stopPropagation()
-            setIsDragHandleActive(true)
-          }}
-          onMouseUp={() => setIsDragHandleActive(false)}
-          onMouseLeave={() => {
-            // Only reset if not currently dragging
-            if (!isDragging) {
-              setIsDragHandleActive(false)
-            }
-          }}
         >
           <GripVertical size={16} />
         </div>

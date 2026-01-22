@@ -12,6 +12,8 @@ import {
   GripVertical,
   Plus,
   Trash2,
+  Search,
+  AlertTriangle,
 } from 'lucide-react'
 import type { TaskWithAssignees } from './ProjectDetailModal'
 import Avatar, { AvatarGroup } from '../common/Avatar'
@@ -45,6 +47,38 @@ export default function TaskList({
   const [dropIndicator, setDropIndicator] = useState<'above' | 'below' | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskStatus, setNewTaskStatus] = useState<'todo' | 'in_progress' | 'done'>('todo')
+  const [newTaskAssignees, setNewTaskAssignees] = useState<string[]>([])
+  const [newTaskStartDate, setNewTaskStartDate] = useState('')
+  const [newTaskEndDate, setNewTaskEndDate] = useState('')
+  const [showNewTaskAssigneeDropdown, setShowNewTaskAssigneeDropdown] = useState(false)
+  const [newTaskAssigneeSearch, setNewTaskAssigneeSearch] = useState('')
+
+  // Initialize dates when form opens
+  const initializeNewTaskForm = () => {
+    const today = new Date()
+    const nextWeek = new Date(today)
+    nextWeek.setDate(nextWeek.getDate() + 7)
+    setNewTaskTitle('')
+    setNewTaskStatus('todo')
+    setNewTaskAssignees([])
+    setNewTaskStartDate(today.toISOString().split('T')[0])
+    setNewTaskEndDate(nextWeek.toISOString().split('T')[0])
+    setShowAddForm(true)
+  }
+
+  // Filter team members for new task dropdown
+  const filteredNewTaskMembers = teamMembers.filter((member) =>
+    member.name.toLowerCase().includes(newTaskAssigneeSearch.toLowerCase())
+  )
+
+  const toggleNewTaskAssignee = (name: string) => {
+    if (newTaskAssignees.includes(name)) {
+      setNewTaskAssignees(newTaskAssignees.filter((a) => a !== name))
+    } else {
+      setNewTaskAssignees([...newTaskAssignees, name])
+    }
+  }
 
   const statusOptions = [
     { value: 'todo', label: 'To Do', color: 'bg-slate-500' },
@@ -110,23 +144,28 @@ export default function TaskList({
   const handleAddTask = () => {
     if (!newTaskTitle.trim() || !onTaskAdd) return
 
-    const today = new Date()
-    const nextWeek = new Date(today)
-    nextWeek.setDate(nextWeek.getDate() + 7)
+    // Calculate progress based on status
+    let progress = 0
+    if (newTaskStatus === 'done') progress = 100
+    else if (newTaskStatus === 'in_progress') progress = 50
 
     const newTask: TaskWithAssignees = {
       id: `t${Date.now()}`,
       title: newTaskTitle.trim(),
-      status: 'todo',
-      assignees: [],
-      startDate: today.toISOString().split('T')[0],
-      endDate: nextWeek.toISOString().split('T')[0],
-      progress: 0,
+      status: newTaskStatus,
+      assignees: newTaskAssignees,
+      startDate: newTaskStartDate,
+      endDate: newTaskEndDate,
+      progress,
     }
 
     onTaskAdd(newTask)
     setNewTaskTitle('')
+    setNewTaskStatus('todo')
+    setNewTaskAssignees([])
     setShowAddForm(false)
+    setShowNewTaskAssigneeDropdown(false)
+    setNewTaskAssigneeSearch('')
   }
 
   return (
@@ -188,44 +227,189 @@ export default function TaskList({
       {onTaskAdd && (
         <div className="mt-4">
           {showAddForm ? (
-            <div className="bg-slate-800/50 rounded-lg border border-slate-700 p-4 animate-in slide-in-from-top-2 duration-200">
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddTask()
-                    if (e.key === 'Escape') {
-                      setShowAddForm(false)
-                      setNewTaskTitle('')
-                    }
-                  }}
-                  placeholder="Enter task title..."
-                  className="flex-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors"
-                  autoFocus
-                />
-                <button
-                  onClick={handleAddTask}
-                  disabled={!newTaskTitle.trim()}
-                  className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded text-sm font-medium transition-colors"
-                >
-                  Add
-                </button>
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 animate-in slide-in-from-top-2 duration-200">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-white font-medium">Add New Task</h4>
                 <button
                   onClick={() => {
                     setShowAddForm(false)
                     setNewTaskTitle('')
+                    setShowNewTaskAssigneeDropdown(false)
                   }}
-                  className="p-2 hover:bg-slate-700 text-slate-400 hover:text-white rounded transition-colors"
+                  className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors"
                 >
                   <X size={18} />
                 </button>
               </div>
+
+              <div className="space-y-4">
+                {/* Task Title */}
+                <div>
+                  <label className="text-sm text-slate-400 block mb-2">Task Title *</label>
+                  <input
+                    type="text"
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newTaskTitle.trim()) handleAddTask()
+                      if (e.key === 'Escape') {
+                        setShowAddForm(false)
+                        setNewTaskTitle('')
+                      }
+                    }}
+                    placeholder="Enter task title..."
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Status and Timeline Row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Status */}
+                  <div>
+                    <label className="text-sm text-slate-400 block mb-2">Status</label>
+                    <select
+                      value={newTaskStatus}
+                      onChange={(e) => setNewTaskStatus(e.target.value as 'todo' | 'in_progress' | 'done')}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors"
+                    >
+                      {statusOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Start Date */}
+                  <div>
+                    <label className="text-sm text-slate-400 block mb-2">Start Date</label>
+                    <input
+                      type="date"
+                      value={newTaskStartDate}
+                      onChange={(e) => setNewTaskStartDate(e.target.value)}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors"
+                    />
+                  </div>
+
+                  {/* End Date */}
+                  <div>
+                    <label className="text-sm text-slate-400 block mb-2">End Date</label>
+                    <input
+                      type="date"
+                      value={newTaskEndDate}
+                      onChange={(e) => setNewTaskEndDate(e.target.value)}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Assignees */}
+                <div className="relative">
+                  <label className="text-sm text-slate-400 block mb-2">Assignees</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewTaskAssigneeDropdown(!showNewTaskAssigneeDropdown)}
+                    className="w-full max-w-sm flex items-center justify-between bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500 hover:border-slate-500 transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      {newTaskAssignees.length > 0 ? (
+                        <>
+                          <AvatarGroup names={newTaskAssignees} max={3} size="sm" />
+                          <span className="text-slate-400 text-xs">
+                            {newTaskAssignees.length} selected
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-slate-500">Select assignees...</span>
+                      )}
+                    </span>
+                    <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${showNewTaskAssigneeDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Assignee Dropdown */}
+                  {showNewTaskAssigneeDropdown && (
+                    <div className="absolute z-[200] mt-2 w-72 max-w-sm bg-slate-800/95 backdrop-blur-md border border-slate-600 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                      {/* Search Input */}
+                      <div className="p-3 border-b border-slate-700">
+                        <div className="relative">
+                          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={newTaskAssigneeSearch}
+                            onChange={(e) => setNewTaskAssigneeSearch(e.target.value)}
+                            placeholder="Search team members..."
+                            className="w-full bg-slate-700/50 border border-slate-600 rounded-lg pl-9 pr-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-primary-500 transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Members List */}
+                      <div className="max-h-52 overflow-auto py-2">
+                        {filteredNewTaskMembers.length > 0 ? (
+                          filteredNewTaskMembers.map((member) => (
+                            <label
+                              key={member.id}
+                              className="flex items-center gap-3 px-3 py-2 mx-2 rounded-lg hover:bg-slate-700/50 cursor-pointer transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={newTaskAssignees.includes(member.name)}
+                                onChange={() => toggleNewTaskAssignee(member.name)}
+                                className="rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500 focus:ring-offset-0"
+                              />
+                              <Avatar name={member.name} size="sm" showTooltip={false} />
+                              <span className="text-white text-sm flex-1">{member.name}</span>
+                              {newTaskAssignees.includes(member.name) && (
+                                <CheckCircle2 size={14} className="text-green-400" />
+                              )}
+                            </label>
+                          ))
+                        ) : (
+                          <div className="px-4 py-3 text-center text-slate-500 text-sm">
+                            No members found
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer with count */}
+                      {newTaskAssignees.length > 0 && (
+                        <div className="px-3 py-2 border-t border-slate-700 bg-slate-800/50">
+                          <span className="text-xs text-slate-400">
+                            {newTaskAssignees.length} member{newTaskAssignees.length !== 1 ? 's' : ''} selected
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      setShowAddForm(false)
+                      setNewTaskTitle('')
+                      setShowNewTaskAssigneeDropdown(false)
+                    }}
+                    className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddTask}
+                    disabled={!newTaskTitle.trim()}
+                    className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Add Task
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             <button
-              onClick={() => setShowAddForm(true)}
+              onClick={initializeNewTaskForm}
               className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-700 hover:border-primary-500/50 rounded-lg text-slate-400 hover:text-primary-400 transition-all hover:bg-slate-800/30"
             >
               <Plus size={18} />
@@ -280,10 +464,23 @@ function TaskRow({
   const [editedTask, setEditedTask] = useState(task)
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [assigneeSearch, setAssigneeSearch] = useState('')
 
   useEffect(() => {
     setEditedTask(task)
   }, [task])
+
+  // Reset search when dropdown closes
+  useEffect(() => {
+    if (!showAssigneeDropdown) {
+      setAssigneeSearch('')
+    }
+  }, [showAssigneeDropdown])
+
+  // Filter team members based on search
+  const filteredMembers = teamMembers.filter((member) =>
+    member.name.toLowerCase().includes(assigneeSearch.toLowerCase())
+  )
 
   const handleSave = () => {
     onSave({
@@ -472,31 +669,52 @@ function TaskRow({
         </div>
       </div>
 
-      {/* Delete Confirmation */}
+      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="absolute inset-0 bg-slate-900/95 rounded-lg flex items-center justify-center z-50">
-          <div className="text-center p-4">
-            <p className="text-white mb-3">Delete "{task.title}"?</p>
-            <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onDelete?.()
-                  setShowDeleteConfirm(false)
-                }}
-                className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded text-sm transition-colors"
-              >
-                Delete
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowDeleteConfirm(false)
-                }}
-                className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm transition-colors"
-              >
-                Cancel
-              </button>
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center"
+          onClick={(e) => {
+            e.stopPropagation()
+            setShowDeleteConfirm(false)
+          }}
+        >
+          {/* Backdrop with blur */}
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+
+          {/* Modal Content */}
+          <div
+            className="relative bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-6 w-80 max-w-[90vw] animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mb-4">
+                <AlertTriangle size={24} className="text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">Delete Task</h3>
+              <p className="text-slate-400 text-sm mb-6">
+                Are you sure you want to delete <span className="text-white font-medium">"{task.title}"</span>? This action cannot be undone.
+              </p>
+              <div className="flex items-center gap-3 w-full">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowDeleteConfirm(false)
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDelete?.()
+                    setShowDeleteConfirm(false)
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -547,16 +765,16 @@ function TaskRow({
                     e.stopPropagation()
                     setShowAssigneeDropdown(!showAssigneeDropdown)
                   }}
-                  className="w-full flex items-center justify-between bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500 hover:border-slate-500 transition-colors"
+                  className="w-full max-w-sm flex items-center justify-between bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500 hover:border-slate-500 transition-colors"
                 >
-                  <span className="flex items-center gap-2 flex-wrap">
+                  <span className="flex items-center gap-2">
                     {editedTask.assignees.length > 0 ? (
-                      <div className="flex items-center gap-2">
-                        <AvatarGroup names={editedTask.assignees} max={5} size="sm" />
-                        <span className="text-slate-400 text-xs ml-2">
+                      <>
+                        <AvatarGroup names={editedTask.assignees} max={3} size="sm" />
+                        <span className="text-slate-400 text-xs">
                           {editedTask.assignees.length} selected
                         </span>
-                      </div>
+                      </>
                     ) : (
                       <span className="text-slate-500">Select assignees...</span>
                     )}
@@ -564,33 +782,63 @@ function TaskRow({
                   <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${showAssigneeDropdown ? 'rotate-180' : ''}`} />
                 </button>
 
-                {/* Dropdown with higher z-index */}
+                {/* Dropdown with blur backdrop and animation */}
                 {showAssigneeDropdown && (
                   <div
-                    className="absolute z-[200] mt-1 w-full bg-slate-800 border border-slate-600 rounded-lg shadow-2xl"
-                    style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}
+                    className="absolute z-[200] mt-2 w-72 max-w-sm bg-slate-800/95 backdrop-blur-md border border-slate-600 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="max-h-48 overflow-auto py-1">
-                      {teamMembers.map((member) => (
-                        <label
-                          key={member.id}
-                          className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-700/70 cursor-pointer transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={editedTask.assignees.includes(member.name)}
-                            onChange={() => toggleAssignee(member.name)}
-                            className="rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500 focus:ring-offset-0"
-                          />
-                          <Avatar name={member.name} size="sm" showTooltip={false} />
-                          <span className="text-white text-sm">{member.name}</span>
-                          {editedTask.assignees.includes(member.name) && (
-                            <CheckCircle2 size={14} className="text-green-400 ml-auto" />
-                          )}
-                        </label>
-                      ))}
+                    {/* Search Input */}
+                    <div className="p-3 border-b border-slate-700">
+                      <div className="relative">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={assigneeSearch}
+                          onChange={(e) => setAssigneeSearch(e.target.value)}
+                          placeholder="Search team members..."
+                          className="w-full bg-slate-700/50 border border-slate-600 rounded-lg pl-9 pr-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-primary-500 transition-colors"
+                          autoFocus
+                        />
+                      </div>
                     </div>
+
+                    {/* Members List */}
+                    <div className="max-h-52 overflow-auto py-2">
+                      {filteredMembers.length > 0 ? (
+                        filteredMembers.map((member) => (
+                          <label
+                            key={member.id}
+                            className="flex items-center gap-3 px-3 py-2 mx-2 rounded-lg hover:bg-slate-700/50 cursor-pointer transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={editedTask.assignees.includes(member.name)}
+                              onChange={() => toggleAssignee(member.name)}
+                              className="rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500 focus:ring-offset-0"
+                            />
+                            <Avatar name={member.name} size="sm" showTooltip={false} />
+                            <span className="text-white text-sm flex-1">{member.name}</span>
+                            {editedTask.assignees.includes(member.name) && (
+                              <CheckCircle2 size={14} className="text-green-400" />
+                            )}
+                          </label>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-center text-slate-500 text-sm">
+                          No members found
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer with count */}
+                    {editedTask.assignees.length > 0 && (
+                      <div className="px-3 py-2 border-t border-slate-700 bg-slate-800/50">
+                        <span className="text-xs text-slate-400">
+                          {editedTask.assignees.length} member{editedTask.assignees.length !== 1 ? 's' : ''} selected
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

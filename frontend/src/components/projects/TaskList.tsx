@@ -359,7 +359,7 @@ function TaskRow({
 
       <div
         className="flex items-center gap-3 p-4 cursor-pointer select-none"
-        onClick={(e) => {
+        onClick={() => {
           // Only toggle expand if not clicking on drag handle
           if (!isDragHandleActive) {
             onToggleExpand()

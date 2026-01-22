@@ -154,7 +154,7 @@ export default function TaskList({
       </div>
 
       <div className="space-y-2">
-        {tasks.map((task, index) => (
+        {tasks.map((task) => (
           <TaskRow
             key={task.id}
             task={task}

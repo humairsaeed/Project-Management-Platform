@@ -10,7 +10,6 @@ import {
   AlertCircle,
   ExternalLink,
   History,
-  Save,
 } from 'lucide-react'
 import Modal from '../common/Modal'
 import TaskList from './TaskList'

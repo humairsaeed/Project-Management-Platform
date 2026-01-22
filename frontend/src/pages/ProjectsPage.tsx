@@ -20,6 +20,8 @@ import {
   PauseCircle,
   XCircle,
   FileEdit,
+  LayoutGrid,
+  List,
 } from 'lucide-react'
 import { useProjectStore, type Project, type RiskLevel, type Priority, type ProjectStatus } from '../store/projectSlice'
 import ProjectDetailModal from '../components/projects/ProjectDetailModal'
@@ -40,6 +42,7 @@ export default function ProjectsPage() {
   const [deleteReason, setDeleteReason] = useState('')
   const [permanentDeleteId, setPermanentDeleteId] = useState<string | null>(null)
   const [sortType, setSortType] = useState<SortType>('custom')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   // Filter states
   const [yearFilter, setYearFilter] = useState<string>('all')
@@ -439,6 +442,33 @@ export default function ProjectsPage() {
             )}
             {getSortLabel()}
           </button>
+        )}
+
+        {/* View Toggle */}
+        <div className="flex items-center bg-slate-800 rounded-lg p-1">
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`p-2 rounded-md transition-colors ${
+              viewMode === 'grid'
+                ? 'bg-primary-500 text-white'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
+            title="Grid view"
+          >
+            <LayoutGrid size={18} />
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`p-2 rounded-md transition-colors ${
+              viewMode === 'list'
+                ? 'bg-primary-500 text-white'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
+            title="List view"
+          >
+            <List size={18} />
+          </button>
+        </div>
         )}
       </div>
 

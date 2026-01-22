@@ -12,6 +12,7 @@ import {
   ChevronDown,
   X,
   PlayCircle,
+  Trash2,
 } from 'lucide-react'
 import Modal from '../common/Modal'
 import TaskList from './TaskList'
@@ -33,6 +34,7 @@ interface ProjectDetailModalProps {
     team?: string
   }
   onClose: () => void
+  onDelete?: (projectId: string, reason: string) => void
 }
 
 // Available team members for assignment
@@ -72,7 +74,7 @@ export interface AuditLogEntry {
 
 type Tab = 'overview' | 'tasks' | 'gantt' | 'audit'
 
-export default function ProjectDetailModal({ project, onClose }: ProjectDetailModalProps) {
+export default function ProjectDetailModal({ project, onClose, onDelete }: ProjectDetailModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([])
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
@@ -83,6 +85,12 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
     targetStatus: ProjectStatus | null
     reason: string
   }>({ isOpen: false, targetStatus: null, reason: '' })
+
+  // Delete confirmation dialog state
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean
+    reason: string
+  }>({ isOpen: false, reason: '' })
 
   // Get project from store
   const { projects, updateProjectTasks, updateProject } = useProjectStore()
@@ -367,6 +375,76 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
 
       {activeTab === 'audit' && (
         <AuditTrail projectId={project.id} externalLogs={auditLogs} />
+      )}
+
+      {/* Delete Button - Fixed at bottom right */}
+      {onDelete && (
+        <div className="absolute bottom-6 right-6">
+          <button
+            onClick={() => setDeleteDialog({ isOpen: true, reason: '' })}
+            className="flex items-center gap-2 px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 rounded-lg text-sm font-medium transition-all"
+          >
+            <Trash2 size={16} />
+            Delete Project
+          </button>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteDialog.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setDeleteDialog({ isOpen: false, reason: '' })}
+          />
+          <div className="relative bg-slate-800/95 backdrop-blur-xl border border-slate-600/50 rounded-xl shadow-2xl p-6 w-full max-w-md animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                <Trash2 size={20} className="text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">Delete Project</h3>
+                <p className="text-sm text-slate-400">This action can be undone from Deleted tab</p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="text-sm text-slate-400 block mb-2">
+                Reason for deletion <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                value={deleteDialog.reason}
+                onChange={(e) => setDeleteDialog({ ...deleteDialog, reason: e.target.value })}
+                placeholder="Why is this project being deleted?"
+                rows={3}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-red-500 transition-colors resize-none"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setDeleteDialog({ isOpen: false, reason: '' })}
+                className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (deleteDialog.reason.trim() && onDelete) {
+                    onDelete(project.id, deleteDialog.reason)
+                    setDeleteDialog({ isOpen: false, reason: '' })
+                    onClose()
+                  }
+                }}
+                disabled={!deleteDialog.reason.trim()}
+                className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Status Change Confirmation Dialog */}

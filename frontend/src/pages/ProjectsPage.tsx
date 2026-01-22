@@ -14,7 +14,6 @@ import {
   ArrowUp,
   ArrowDown,
   X,
-  ChevronDown,
 } from 'lucide-react'
 import { useProjectStore, type Project, type RiskLevel, type Priority, type ProjectStatus } from '../store/projectSlice'
 import ProjectDetailModal from '../components/projects/ProjectDetailModal'

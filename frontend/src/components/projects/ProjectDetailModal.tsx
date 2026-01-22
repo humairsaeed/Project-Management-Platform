@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import {
   Calendar,
   User,
@@ -8,17 +7,17 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  ExternalLink,
   History,
   Edit2,
   ChevronDown,
   X,
+  PlayCircle,
 } from 'lucide-react'
 import Modal from '../common/Modal'
 import TaskList from './TaskList'
 import AuditTrail from '../common/AuditTrail'
 import Avatar, { AvatarGroup } from '../common/Avatar'
-import { useProjectStore, type TaskWithAssignees as StoreTaskWithAssignees, type RiskLevel } from '../../store/projectSlice'
+import { useProjectStore, type TaskWithAssignees as StoreTaskWithAssignees, type RiskLevel, type ProjectStatus } from '../../store/projectSlice'
 
 interface ProjectDetailModalProps {
   project: {
@@ -248,6 +247,23 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
     setTimeout(() => setSaveMessage(null), 2000)
   }
 
+  const handleStatusChange = (newStatus: ProjectStatus) => {
+    const oldStatus = storeProject?.status
+    if (oldStatus === newStatus) return
+
+    updateProject(project.id, { status: newStatus })
+    addAuditLog(
+      'STATUS_CHANGE',
+      project.name,
+      { status: oldStatus },
+      { status: newStatus },
+      ['status'],
+      'projects'
+    )
+    setSaveMessage('Status updated!')
+    setTimeout(() => setSaveMessage(null), 2000)
+  }
+
   const completedTasks = tasks.filter((t) => t.status === 'done').length
   const inProgressTasks = tasks.filter((t) => t.status === 'in_progress').length
   const todoTasks = tasks.filter((t) => t.status === 'todo').length
@@ -279,31 +295,22 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
           </button>
         ))}
 
-        <div className="ml-auto flex items-center gap-3">
-          {/* Save indicator */}
-          {saveMessage && (
-            <span className="flex items-center gap-1 text-sm text-green-400 animate-pulse">
-              <CheckCircle2 size={14} />
-              {saveMessage}
-            </span>
-          )}
-
-          <Link
-            to={`/projects/${project.id}`}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
-          >
-            <ExternalLink size={16} />
-            Open Full View
-          </Link>
-        </div>
+        {/* Save indicator */}
+        {saveMessage && (
+          <span className="ml-auto flex items-center gap-1 text-sm text-green-400 animate-pulse">
+            <CheckCircle2 size={14} />
+            {saveMessage}
+          </span>
+        )}
       </div>
 
       {/* Tab Content */}
       {activeTab === 'overview' && (
         <OverviewTab
-          project={{ ...project, completionPercentage: currentCompletion, riskLevel: currentRiskLevel }}
+          project={{ ...project, completionPercentage: currentCompletion, riskLevel: currentRiskLevel, status: storeProject?.status || project.status }}
           stats={{ completedTasks, inProgressTasks, todoTasks, totalTasks: tasks.length }}
           onRiskLevelChange={handleRiskLevelChange}
+          onStatusChange={handleStatusChange}
         />
       )}
 
@@ -333,12 +340,15 @@ function OverviewTab({
   project,
   stats,
   onRiskLevelChange,
+  onStatusChange,
 }: {
   project: ProjectDetailModalProps['project']
   stats: { completedTasks: number; inProgressTasks: number; todoTasks: number; totalTasks: number }
   onRiskLevelChange: (riskLevel: RiskLevel) => void
+  onStatusChange: (status: ProjectStatus) => void
 }) {
   const [showRiskDropdown, setShowRiskDropdown] = useState(false)
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
 
   const riskColors: Record<string, string> = {
     low: 'text-green-400',
@@ -354,18 +364,74 @@ function OverviewTab({
     critical: 'bg-red-500/20 hover:bg-red-500/30',
   }
 
+  const statusColors: Record<string, string> = {
+    active: 'text-green-400',
+    completed: 'text-emerald-400',
+    on_hold: 'text-yellow-400',
+  }
+
+  const statusBgColors: Record<string, string> = {
+    active: 'bg-green-500/20 hover:bg-green-500/30',
+    completed: 'bg-emerald-500/20 hover:bg-emerald-500/30',
+    on_hold: 'bg-yellow-500/20 hover:bg-yellow-500/30',
+  }
+
+  const statusLabels: Record<string, string> = {
+    active: 'Active',
+    completed: 'Completed',
+    on_hold: 'On Hold',
+  }
+
   const riskOptions: RiskLevel[] = ['low', 'medium', 'high', 'critical']
+  const statusOptions: ProjectStatus[] = ['active', 'on_hold', 'completed']
 
   return (
     <div className="space-y-6">
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-slate-700/50 rounded-lg p-4">
           <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
             <BarChart3 size={16} />
             Completion
           </div>
           <div className="text-2xl font-bold text-white">{project.completionPercentage}%</div>
+        </div>
+
+        {/* Editable Status */}
+        <div className="bg-slate-700/50 rounded-lg p-4 relative">
+          <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
+            <PlayCircle size={16} />
+            Status
+            <Edit2 size={12} className="ml-auto opacity-50" />
+          </div>
+          <button
+            onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+            className={`text-2xl font-bold ${statusColors[project.status]} flex items-center gap-2 hover:opacity-80 transition-opacity`}
+          >
+            {statusLabels[project.status] || project.status}
+            <ChevronDown size={18} className={`transition-transform ${showStatusDropdown ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Status Dropdown */}
+          {showStatusDropdown && (
+            <div className="absolute z-50 top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl overflow-hidden">
+              {statusOptions.map((status) => (
+                <button
+                  key={status}
+                  onClick={() => {
+                    onStatusChange(status)
+                    setShowStatusDropdown(false)
+                  }}
+                  className={`w-full px-4 py-2.5 text-left flex items-center justify-between ${statusBgColors[status]} ${statusColors[status]} transition-colors`}
+                >
+                  {statusLabels[status]}
+                  {project.status === status && (
+                    <CheckCircle2 size={16} />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Editable Risk Level */}
@@ -448,7 +514,7 @@ function OverviewTab({
           <div className="space-y-3">
             <div className="flex items-center gap-3 text-sm">
               <User size={16} className="text-slate-400" />
-              <span className="text-slate-400">Project Manager:</span>
+              <span className="text-slate-400">Assigned to:</span>
               <span className="text-white">{project.manager || 'Not assigned'}</span>
             </div>
 

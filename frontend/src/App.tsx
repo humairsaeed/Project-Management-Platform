@@ -2,9 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import MainLayout from './components/layout/MainLayout'
 import DashboardPage from './pages/DashboardPage'
 import ProjectsPage from './pages/ProjectsPage'
-import ProjectDetailPage from './pages/ProjectDetailPage'
-import KanbanPage from './pages/KanbanPage'
-import GanttPage from './pages/GanttPage'
 import SettingsPage from './pages/SettingsPage'
 import LoginPage from './pages/LoginPage'
 import { useAuthStore } from './store/authSlice'
@@ -36,9 +33,6 @@ function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="projects" element={<ProjectsPage />} />
-          <Route path="projects/:projectId" element={<ProjectDetailPage />} />
-          <Route path="projects/:projectId/kanban" element={<KanbanPage />} />
-          <Route path="projects/:projectId/gantt" element={<GanttPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

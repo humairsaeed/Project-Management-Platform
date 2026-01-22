@@ -68,9 +68,19 @@ export default function ProjectsPage() {
     moveToActive,
   } = useProjectStore()
 
-  // Get years and months for filters
-  const currentYear = new Date().getFullYear()
-  const years = [currentYear - 1, currentYear, currentYear + 1, currentYear + 2]
+  // Get years that have projects (based on deadlines)
+  const projectYears = useMemo(() => {
+    const yearsSet = new Set<number>()
+    projects.forEach((project) => {
+      if (!project.isDeleted) {
+        const deadline = new Date()
+        deadline.setDate(deadline.getDate() + project.daysUntilDeadline)
+        yearsSet.add(deadline.getFullYear())
+      }
+    })
+    return Array.from(yearsSet).sort((a, b) => a - b)
+  }, [projects])
+
   const months = [
     { value: '01', label: 'January' },
     { value: '02', label: 'February' },
@@ -340,15 +350,24 @@ export default function ProjectsPage() {
         {tabs.map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
+
+          // Define colors for each tab
+          const tabColors: Record<TabType, { bg: string; badge: string }> = {
+            active: { bg: 'bg-green-500', badge: 'bg-green-600' },
+            completed: { bg: 'bg-emerald-500', badge: 'bg-emerald-600' },
+            upcoming: { bg: 'bg-amber-500', badge: 'bg-amber-600' },
+            deleted: { bg: 'bg-red-500/80', badge: 'bg-red-600' },
+          }
+
+          const colors = tabColors[tab.id]
+
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
                 isActive
-                  ? tab.id === 'deleted'
-                    ? 'bg-red-500/80 text-white'
-                    : 'bg-primary-500 text-white'
+                  ? `${colors.bg} text-white`
                   : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
               }`}
             >
@@ -357,9 +376,7 @@ export default function ProjectsPage() {
               <span
                 className={`px-2 py-0.5 rounded-full text-xs ${
                   isActive
-                    ? tab.id === 'deleted'
-                      ? 'bg-red-600 text-white'
-                      : 'bg-primary-600 text-white'
+                    ? `${colors.badge} text-white`
                     : 'bg-slate-700 text-slate-400'
                 }`}
               >
@@ -438,26 +455,9 @@ export default function ProjectsPage() {
                 className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-primary-500"
               >
                 <option value="all">All Years</option>
-                {years.map((year) => (
+                {projectYears.map((year) => (
                   <option key={year} value={year.toString()}>
                     {year}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Month Filter */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-slate-400">Month:</label>
-              <select
-                value={monthFilter}
-                onChange={(e) => setMonthFilter(e.target.value)}
-                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-primary-500"
-              >
-                <option value="all">All Months</option>
-                {months.map((month) => (
-                  <option key={month.value} value={month.value}>
-                    {month.label}
                   </option>
                 ))}
               </select>
@@ -599,13 +599,13 @@ export default function ProjectsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-2">Manager</label>
+                  <label className="text-sm text-slate-400 block mb-2">Assigned to</label>
                   <select
                     value={newProject.manager}
                     onChange={(e) => setNewProject({ ...newProject, manager: e.target.value })}
                     className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500"
                   >
-                    <option value="">Select manager...</option>
+                    <option value="">Select person...</option>
                     {managerOptions.map((manager) => (
                       <option key={manager} value={manager}>
                         {manager}
@@ -994,9 +994,9 @@ function ProjectCard({
           <div className="text-slate-500">{project.tasks.length} tasks</div>
         </div>
 
-        {/* Manager & Team */}
+        {/* Assigned To & Team */}
         <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-center justify-between text-xs text-slate-500">
-          <span>Manager: {project.manager}</span>
+          <span>Assigned to: {project.manager}</span>
           <span>{project.team}</span>
         </div>
       </div>

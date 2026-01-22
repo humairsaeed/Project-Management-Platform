@@ -138,6 +138,9 @@ interface ProjectState {
   milestones: { recent: Milestone[]; upcoming: Milestone[] }
 
   // Actions
+  addProject: (project: Project) => void
+  deleteProject: (projectId: string) => void
+  reorderProjects: (draggedId: string, targetId: string) => void
   updateProject: (projectId: string, updates: Partial<Project>) => void
   updateProjectTasks: (projectId: string, tasks: TaskWithAssignees[]) => void
   updateProjectCompletion: (projectId: string, completion: number) => void
@@ -154,6 +157,33 @@ export const useProjectStore = create<ProjectState>()(
     (set, get) => ({
       projects: initialProjects,
       milestones: initialMilestones,
+
+      addProject: (project) => {
+        set((state) => ({
+          projects: [project, ...state.projects],
+        }))
+      },
+
+      deleteProject: (projectId) => {
+        set((state) => ({
+          projects: state.projects.filter((p) => p.id !== projectId),
+        }))
+      },
+
+      reorderProjects: (draggedId, targetId) => {
+        set((state) => {
+          const projects = [...state.projects]
+          const draggedIndex = projects.findIndex((p) => p.id === draggedId)
+          const targetIndex = projects.findIndex((p) => p.id === targetId)
+
+          if (draggedIndex === -1 || targetIndex === -1) return state
+
+          const [draggedProject] = projects.splice(draggedIndex, 1)
+          projects.splice(targetIndex, 0, draggedProject)
+
+          return { projects }
+        })
+      },
 
       updateProject: (projectId, updates) => {
         set((state) => ({

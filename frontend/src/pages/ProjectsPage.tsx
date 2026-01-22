@@ -1,40 +1,122 @@
 import { useState, useMemo } from 'react'
-import { Plus, Search, Filter, FolderOpen, CheckCircle2, Clock, Calendar } from 'lucide-react'
-import { useProjectStore, type Project } from '../store/projectSlice'
+import {
+  Plus,
+  Search,
+  Filter,
+  FolderOpen,
+  CheckCircle2,
+  Clock,
+  Calendar,
+  Trash2,
+  AlertTriangle,
+  GripVertical,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  X,
+  ChevronDown,
+} from 'lucide-react'
+import { useProjectStore, type Project, type RiskLevel, type Priority, type ProjectStatus } from '../store/projectSlice'
 import ProjectDetailModal from '../components/projects/ProjectDetailModal'
 
 type TabType = 'active' | 'completed' | 'upcoming'
+type SortDirection = 'asc' | 'desc' | null
+
+const teamOptions = ['Security', 'Cloud Services', 'IT Infrastructure', 'DevOps', 'Engineering']
+const managerOptions = ['John Smith', 'Sarah Jones', 'Mike Wilson', 'Emily Chen', 'David Lee']
 
 export default function ProjectsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState<TabType>('active')
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null)
 
-  const { projects } = useProjectStore()
+  // Filter states
+  const [yearFilter, setYearFilter] = useState<string>('all')
+  const [monthFilter, setMonthFilter] = useState<string>('all')
+  const [showFilters, setShowFilters] = useState(false)
 
-  // Filter projects by search term
+  // Drag and drop states
+  const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null)
+  const [dragOverProjectId, setDragOverProjectId] = useState<string | null>(null)
+
+  // New project form states
+  const [newProject, setNewProject] = useState({
+    name: '',
+    description: '',
+    team: '',
+    manager: '',
+    priority: 'medium' as Priority,
+    riskLevel: 'low' as RiskLevel,
+    daysUntilDeadline: 30,
+  })
+
+  const { projects, addProject, deleteProject, reorderProjects } = useProjectStore()
+
+  // Get years and months for filters
+  const currentYear = new Date().getFullYear()
+  const years = [currentYear - 1, currentYear, currentYear + 1, currentYear + 2]
+  const months = [
+    { value: '01', label: 'January' },
+    { value: '02', label: 'February' },
+    { value: '03', label: 'March' },
+    { value: '04', label: 'April' },
+    { value: '05', label: 'May' },
+    { value: '06', label: 'June' },
+    { value: '07', label: 'July' },
+    { value: '08', label: 'August' },
+    { value: '09', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' },
+  ]
+
+  // Filter projects by search term and date filters
   const filteredProjects = useMemo(() => {
-    return projects.filter((project) =>
-      project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      project.description.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  }, [projects, searchTerm])
+    return projects.filter((project) => {
+      const matchesSearch =
+        project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        project.description.toLowerCase().includes(searchTerm.toLowerCase())
+
+      // Calculate deadline date for filtering
+      const deadline = new Date()
+      deadline.setDate(deadline.getDate() + project.daysUntilDeadline)
+      const deadlineYear = deadline.getFullYear().toString()
+      const deadlineMonth = (deadline.getMonth() + 1).toString().padStart(2, '0')
+
+      const matchesYear = yearFilter === 'all' || deadlineYear === yearFilter
+      const matchesMonth = monthFilter === 'all' || deadlineMonth === monthFilter
+
+      return matchesSearch && matchesYear && matchesMonth
+    })
+  }, [projects, searchTerm, yearFilter, monthFilter])
+
+  // Sort projects
+  const sortedProjects = useMemo(() => {
+    if (!sortDirection) return filteredProjects
+
+    return [...filteredProjects].sort((a, b) => {
+      const comparison = a.name.localeCompare(b.name)
+      return sortDirection === 'asc' ? comparison : -comparison
+    })
+  }, [filteredProjects, sortDirection])
 
   // Categorize projects by status
-  const activeProjects = useMemo(() =>
-    filteredProjects.filter((p) => p.status === 'active'),
-    [filteredProjects]
+  const activeProjects = useMemo(
+    () => sortedProjects.filter((p) => p.status === 'active'),
+    [sortedProjects]
   )
 
-  const completedProjects = useMemo(() =>
-    filteredProjects.filter((p) => p.status === 'completed'),
-    [filteredProjects]
+  const completedProjects = useMemo(
+    () => sortedProjects.filter((p) => p.status === 'completed'),
+    [sortedProjects]
   )
 
-  // Upcoming projects - on_hold status or projects with future start dates
-  const upcomingProjects = useMemo(() =>
-    filteredProjects.filter((p) => p.status === 'on_hold'),
-    [filteredProjects]
+  const upcomingProjects = useMemo(
+    () => sortedProjects.filter((p) => p.status === 'on_hold'),
+    [sortedProjects]
   )
 
   // Get projects for current tab
@@ -53,9 +135,7 @@ export default function ProjectsPage() {
 
   const currentProjects = getCurrentProjects()
 
-  const selectedProject = selectedProjectId
-    ? projects.find((p) => p.id === selectedProjectId)
-    : null
+  const selectedProject = selectedProjectId ? projects.find((p) => p.id === selectedProjectId) : null
 
   const tabs = [
     { id: 'active' as TabType, label: 'Active Projects', icon: FolderOpen, count: activeProjects.length },
@@ -83,15 +163,98 @@ export default function ProjectsPage() {
     })
   }
 
+  const handleCreateProject = () => {
+    if (!newProject.name.trim()) return
+
+    const project: Project = {
+      id: `p${Date.now()}`,
+      name: newProject.name.trim(),
+      description: newProject.description.trim() || 'No description provided',
+      completionPercentage: 0,
+      status: 'active' as ProjectStatus,
+      riskLevel: newProject.riskLevel,
+      daysUntilDeadline: newProject.daysUntilDeadline,
+      priority: newProject.priority,
+      manager: newProject.manager || 'Unassigned',
+      team: newProject.team || 'General',
+      tasks: [],
+    }
+
+    addProject(project)
+    setShowNewProjectModal(false)
+    setNewProject({
+      name: '',
+      description: '',
+      team: '',
+      manager: '',
+      priority: 'medium',
+      riskLevel: 'low',
+      daysUntilDeadline: 30,
+    })
+  }
+
+  const handleDeleteProject = (projectId: string) => {
+    deleteProject(projectId)
+    setDeleteConfirmId(null)
+  }
+
+  const toggleSort = () => {
+    if (sortDirection === null) setSortDirection('asc')
+    else if (sortDirection === 'asc') setSortDirection('desc')
+    else setSortDirection(null)
+  }
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, projectId: string) => {
+    setDraggedProjectId(projectId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e: React.DragEvent, projectId: string) => {
+    e.preventDefault()
+    if (draggedProjectId && draggedProjectId !== projectId) {
+      setDragOverProjectId(projectId)
+    }
+  }
+
+  const handleDragLeave = () => {
+    setDragOverProjectId(null)
+  }
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault()
+    if (draggedProjectId && draggedProjectId !== targetId) {
+      reorderProjects(draggedProjectId, targetId)
+    }
+    setDraggedProjectId(null)
+    setDragOverProjectId(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedProjectId(null)
+    setDragOverProjectId(null)
+  }
+
+  const clearFilters = () => {
+    setYearFilter('all')
+    setMonthFilter('all')
+    setSearchTerm('')
+  }
+
+  const hasActiveFilters = yearFilter !== 'all' || monthFilter !== 'all' || searchTerm !== ''
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Projects</h1>
-          <p className="text-slate-400 mt-1">Manage your IT infrastructure projects</p>
+          <p className="text-slate-400 mt-1">Plan, track, and deliver your projects</p>
         </div>
-        <button className="btn-primary flex items-center gap-2">
+        <button
+          onClick={() => setShowNewProjectModal(true)}
+          className="btn-primary flex items-center gap-2"
+        >
           <Plus size={18} />
           New Project
         </button>
@@ -116,9 +279,7 @@ export default function ProjectsPage() {
               {tab.label}
               <span
                 className={`px-2 py-0.5 rounded-full text-xs ${
-                  isActive
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-slate-700 text-slate-400'
+                  isActive ? 'bg-primary-600 text-white' : 'bg-slate-700 text-slate-400'
                 }`}
               >
                 {tab.count}
@@ -128,8 +289,8 @@ export default function ProjectsPage() {
         })}
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-4">
+      {/* Filters Row */}
+      <div className="flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-2 flex-1 max-w-md">
           <Search size={18} className="text-slate-400" />
           <input
@@ -140,10 +301,91 @@ export default function ProjectsPage() {
             className="input flex-1"
           />
         </div>
-        <button className="btn-secondary flex items-center gap-2">
+
+        {/* Filter Toggle Button */}
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={`btn-secondary flex items-center gap-2 ${showFilters ? 'bg-primary-500/20 border-primary-500' : ''}`}
+        >
           <Filter size={18} />
           Filters
+          {hasActiveFilters && (
+            <span className="w-2 h-2 rounded-full bg-primary-500" />
+          )}
         </button>
+
+        {/* Sort Button */}
+        <button
+          onClick={toggleSort}
+          className={`btn-secondary flex items-center gap-2 ${sortDirection ? 'bg-primary-500/20 border-primary-500' : ''}`}
+        >
+          {sortDirection === 'asc' ? (
+            <ArrowUp size={18} />
+          ) : sortDirection === 'desc' ? (
+            <ArrowDown size={18} />
+          ) : (
+            <ArrowUpDown size={18} />
+          )}
+          Sort {sortDirection === 'asc' ? '(A-Z)' : sortDirection === 'desc' ? '(Z-A)' : ''}
+        </button>
+      </div>
+
+      {/* Expanded Filters */}
+      {showFilters && (
+        <div className="bg-slate-800/50 rounded-lg border border-slate-700 p-4 animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-white font-medium">Filter by Target Date</h3>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1"
+              >
+                <X size={14} />
+                Clear all
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Year Filter */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-slate-400">Year:</label>
+              <select
+                value={yearFilter}
+                onChange={(e) => setYearFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-primary-500"
+              >
+                <option value="all">All Years</option>
+                {years.map((year) => (
+                  <option key={year} value={year.toString()}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Month Filter */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-slate-400">Month:</label>
+              <select
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-primary-500"
+              >
+                <option value="all">All Months</option>
+                {months.map((month) => (
+                  <option key={month.value} value={month.value}>
+                    {month.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Drag Hint */}
+      <div className="text-xs text-slate-500">
+        Drag projects to reorder. Click on a project to view details.
       </div>
 
       {/* Projects Grid */}
@@ -156,14 +398,22 @@ export default function ProjectsPage() {
               formatDeadline={formatDeadline}
               formatCompletedDate={formatCompletedDate}
               onClick={() => setSelectedProjectId(project.id)}
+              onDelete={() => setDeleteConfirmId(project.id)}
+              isDragging={draggedProjectId === project.id}
+              isDragOver={dragOverProjectId === project.id}
+              onDragStart={(e) => handleDragStart(e, project.id)}
+              onDragOver={(e) => handleDragOver(e, project.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, project.id)}
+              onDragEnd={handleDragEnd}
             />
           ))}
         </div>
       ) : (
         <div className="card text-center py-12">
           <div className="text-slate-400 text-lg">
-            {searchTerm
-              ? `No ${activeTab} projects found matching "${searchTerm}"`
+            {searchTerm || hasActiveFilters
+              ? `No ${activeTab} projects found matching your filters`
               : `No ${activeTab} projects`}
           </div>
           <p className="text-slate-500 text-sm mt-2">
@@ -176,12 +426,214 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Project Detail Modal */}
+      {/* Project Detail Modal with Animation */}
       {selectedProject && (
-        <ProjectDetailModal
-          project={selectedProject}
-          onClose={() => setSelectedProjectId(null)}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-in fade-in duration-200">
+          <div
+            className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"
+            onClick={() => setSelectedProjectId(null)}
+          />
+          <div className="relative w-full max-w-6xl max-h-[90vh] mx-4 animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+            <ProjectDetailModal
+              project={selectedProject}
+              onClose={() => setSelectedProjectId(null)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* New Project Modal */}
+      {showNewProjectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-in fade-in duration-200">
+          <div
+            className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"
+            onClick={() => setShowNewProjectModal(false)}
+          />
+          <div
+            className="relative bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-6 w-full max-w-lg mx-4 animate-in zoom-in-95 slide-in-from-bottom-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-white">Create New Project</h2>
+              <button
+                onClick={() => setShowNewProjectModal(false)}
+                className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Project Name */}
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Project Name *</label>
+                <input
+                  type="text"
+                  value={newProject.name}
+                  onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+                  placeholder="Enter project name..."
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500"
+                  autoFocus
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Description</label>
+                <textarea
+                  value={newProject.description}
+                  onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+                  placeholder="Describe your project..."
+                  rows={3}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500 resize-none"
+                />
+              </div>
+
+              {/* Team and Manager Row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-slate-400 block mb-2">Team</label>
+                  <select
+                    value={newProject.team}
+                    onChange={(e) => setNewProject({ ...newProject, team: e.target.value })}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500"
+                  >
+                    <option value="">Select team...</option>
+                    {teamOptions.map((team) => (
+                      <option key={team} value={team}>
+                        {team}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-slate-400 block mb-2">Manager</label>
+                  <select
+                    value={newProject.manager}
+                    onChange={(e) => setNewProject({ ...newProject, manager: e.target.value })}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500"
+                  >
+                    <option value="">Select manager...</option>
+                    {managerOptions.map((manager) => (
+                      <option key={manager} value={manager}>
+                        {manager}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Priority and Risk Row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-slate-400 block mb-2">Priority</label>
+                  <select
+                    value={newProject.priority}
+                    onChange={(e) => setNewProject({ ...newProject, priority: e.target.value as Priority })}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-slate-400 block mb-2">Risk Level</label>
+                  <select
+                    value={newProject.riskLevel}
+                    onChange={(e) => setNewProject({ ...newProject, riskLevel: e.target.value as RiskLevel })}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Days Until Deadline */}
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">
+                  Days Until Deadline: {newProject.daysUntilDeadline} days
+                </label>
+                <input
+                  type="range"
+                  min="7"
+                  max="365"
+                  value={newProject.daysUntilDeadline}
+                  onChange={(e) => setNewProject({ ...newProject, daysUntilDeadline: parseInt(e.target.value) })}
+                  className="w-full accent-primary-500"
+                />
+                <div className="flex justify-between text-xs text-slate-500 mt-1">
+                  <span>1 week</span>
+                  <span>Target: {formatDeadline(newProject.daysUntilDeadline)}</span>
+                  <span>1 year</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-700">
+                <button
+                  onClick={() => setShowNewProjectModal(false)}
+                  className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateProject}
+                  disabled={!newProject.name.trim()}
+                  className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Create Project
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center animate-in fade-in duration-150"
+          onClick={() => setDeleteConfirmId(null)}
+        >
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+          <div
+            className="relative bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-6 w-80 max-w-[90vw] animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mb-4">
+                <AlertTriangle size={24} className="text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">Delete Project</h3>
+              <p className="text-slate-400 text-sm mb-6">
+                Are you sure you want to delete{' '}
+                <span className="text-white font-medium">
+                  "{projects.find((p) => p.id === deleteConfirmId)?.name}"
+                </span>
+                ? This action cannot be undone.
+              </p>
+              <div className="flex items-center gap-3 w-full">
+                <button
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteProject(deleteConfirmId)}
+                  className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -192,11 +644,27 @@ function ProjectCard({
   formatDeadline,
   formatCompletedDate,
   onClick,
+  onDelete,
+  isDragging,
+  isDragOver,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
 }: {
   project: Project
   formatDeadline: (days: number) => string
   formatCompletedDate: (dateStr?: string) => string
   onClick: () => void
+  onDelete: () => void
+  isDragging: boolean
+  isDragOver: boolean
+  onDragStart: (e: React.DragEvent) => void
+  onDragOver: (e: React.DragEvent) => void
+  onDragLeave: () => void
+  onDrop: (e: React.DragEvent) => void
+  onDragEnd: () => void
 }) {
   const statusConfig: Record<string, { bg: string; text: string; border: string; label: string }> = {
     active: { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20', label: 'Active' },
@@ -216,68 +684,94 @@ function ProjectCard({
 
   return (
     <div
-      onClick={onClick}
-      className="card cursor-pointer hover:border-primary-500/50 hover:bg-slate-800/80 transition-all group"
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      className={`card cursor-pointer hover:border-primary-500/50 hover:bg-slate-800/80 transition-all group relative ${
+        isDragging ? 'opacity-50 scale-95 rotate-1' : ''
+      } ${isDragOver ? 'border-primary-500 scale-[1.02] shadow-lg shadow-primary-500/20' : ''}`}
     >
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-white font-semibold text-lg group-hover:text-primary-400 transition-colors truncate">
-            {project.name}
-          </h3>
-          <p className="text-slate-400 text-sm mt-1 line-clamp-2">
-            {project.description}
-          </p>
-        </div>
+      {/* Drag Handle */}
+      <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-300">
+        <GripVertical size={16} />
       </div>
 
-      {/* Status & Risk Badges */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className={`px-2 py-1 rounded-full text-xs border ${status.bg} ${status.text} ${status.border}`}>
-          {status.label}
-        </span>
-        {project.status !== 'completed' && (
-          <span className={`px-2 py-1 rounded-full text-xs ${risk.bg} ${risk.text}`}>
-            {project.riskLevel.charAt(0).toUpperCase() + project.riskLevel.slice(1)} Risk
+      {/* Delete Button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete()
+        }}
+        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-red-500/20 rounded-lg text-slate-500 hover:text-red-400"
+        title="Delete project"
+      >
+        <Trash2 size={16} />
+      </button>
+
+      <div onClick={onClick} className="pt-2">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1 min-w-0 pl-4">
+            <h3 className="text-white font-semibold text-lg group-hover:text-primary-400 transition-colors truncate">
+              {project.name}
+            </h3>
+            <p className="text-slate-400 text-sm mt-1 line-clamp-2">{project.description}</p>
+          </div>
+        </div>
+
+        {/* Status & Risk Badges */}
+        <div className="flex items-center gap-2 mb-4">
+          <span className={`px-2 py-1 rounded-full text-xs border ${status.bg} ${status.text} ${status.border}`}>
+            {status.label}
           </span>
-        )}
-      </div>
+          {project.status !== 'completed' && (
+            <span className={`px-2 py-1 rounded-full text-xs ${risk.bg} ${risk.text}`}>
+              {project.riskLevel.charAt(0).toUpperCase() + project.riskLevel.slice(1)} Risk
+            </span>
+          )}
+        </div>
 
-      {/* Progress */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-sm text-slate-400">Progress</span>
-          <span className="text-sm font-medium text-white">{project.completionPercentage}%</span>
+        {/* Progress */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-sm text-slate-400">Progress</span>
+            <span className="text-sm font-medium text-white">{project.completionPercentage}%</span>
+          </div>
+          <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                project.completionPercentage === 100 ? 'bg-emerald-500' : 'bg-primary-500'
+              }`}
+              style={{ width: `${project.completionPercentage}%` }}
+            />
+          </div>
         </div>
-        <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${
-              project.completionPercentage === 100 ? 'bg-emerald-500' : 'bg-primary-500'
-            }`}
-            style={{ width: `${project.completionPercentage}%` }}
-          />
-        </div>
-      </div>
 
-      {/* Footer */}
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-1.5 text-slate-400">
-          <Calendar size={14} />
-          <span>
-            {project.status === 'completed'
-              ? `Completed ${formatCompletedDate(project.completedAt)}`
-              : formatDeadline(project.daysUntilDeadline)}
-          </span>
+        {/* Footer */}
+        <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center gap-1.5 text-slate-400">
+            <Calendar size={14} />
+            <span>
+              {project.status === 'completed' ? (
+                `Completed ${formatCompletedDate(project.completedAt)}`
+              ) : (
+                <>
+                  <span className="text-slate-500">Target Date:</span> {formatDeadline(project.daysUntilDeadline)}
+                </>
+              )}
+            </span>
+          </div>
+          <div className="text-slate-500">{project.tasks.length} tasks</div>
         </div>
-        <div className="text-slate-500">
-          {project.tasks.length} tasks
-        </div>
-      </div>
 
-      {/* Manager & Team */}
-      <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-center justify-between text-xs text-slate-500">
-        <span>Manager: {project.manager}</span>
-        <span>{project.team}</span>
+        {/* Manager & Team */}
+        <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-center justify-between text-xs text-slate-500">
+          <span>Manager: {project.manager}</span>
+          <span>{project.team}</span>
+        </div>
       </div>
     </div>
   )

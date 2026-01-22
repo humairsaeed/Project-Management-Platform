@@ -180,8 +180,6 @@ export default function TaskList({
             statusOptions={statusOptions}
             getStatusIcon={getStatusIcon}
             teamMembers={teamMembers}
-            animationDelay={index * 50}
-            zIndex={tasks.length - index}
           />
         ))}
       </div>
@@ -259,8 +257,6 @@ function TaskRow({
   statusOptions,
   getStatusIcon,
   teamMembers,
-  animationDelay,
-  zIndex,
 }: {
   task: TaskWithAssignees
   isEditing: boolean
@@ -280,22 +276,14 @@ function TaskRow({
   statusOptions: Array<{ value: string; label: string; color: string }>
   getStatusIcon: (status: string) => React.ReactNode
   teamMembers: TeamMember[]
-  animationDelay: number
-  zIndex: number
 }) {
   const [editedTask, setEditedTask] = useState(task)
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
-  const [isVisible, setIsVisible] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
     setEditedTask(task)
   }, [task])
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsVisible(true), animationDelay)
-    return () => clearTimeout(timer)
-  }, [animationDelay])
 
   const handleSave = () => {
     onSave({
@@ -348,12 +336,11 @@ function TaskRow({
     <div
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
-      style={{ zIndex: isExpanded ? 100 : zIndex }}
       className={`relative bg-slate-800/50 rounded-lg border transition-all duration-300 ease-out
-        ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
-        ${isExpanded ? 'border-primary-500/50 shadow-lg shadow-primary-500/10' : 'border-slate-700'}
+        ${isExpanded ? 'border-primary-500/50 shadow-lg shadow-primary-500/10 z-10' : 'border-slate-700'}
         ${isDragging ? 'opacity-50 scale-95 rotate-1' : ''}
         ${isDragOver ? 'scale-[1.02]' : ''}
+        ${showAssigneeDropdown ? 'z-50' : ''}
         hover:border-slate-600 hover:shadow-md
       `}
     >
@@ -517,8 +504,8 @@ function TaskRow({
 
       {/* Expanded Details */}
       <div
-        className={`overflow-visible transition-all duration-300 ease-out ${
-          isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'
+        className={`transition-all duration-300 ease-out ${
+          isExpanded ? 'max-h-[500px] opacity-100 overflow-visible' : 'max-h-0 opacity-0 overflow-hidden pointer-events-none'
         }`}
       >
         <div className="px-4 pb-4 pt-2 border-t border-slate-700">

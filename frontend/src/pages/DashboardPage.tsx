@@ -1,96 +1,21 @@
-import { TrendingUp, FolderCheck, AlertTriangle, Clock, X } from 'lucide-react'
+import { TrendingUp, FolderCheck, AlertTriangle, Clock, X, Trophy, RotateCcw } from 'lucide-react'
 import PortfolioOverview from '../components/dashboard/PortfolioOverview'
 import ProjectCard from '../components/dashboard/ProjectCard'
 import MilestoneTimeline from '../components/dashboard/MilestoneTimeline'
 import ProjectDetailModal from '../components/projects/ProjectDetailModal'
 import { useDashboardStore } from '../store/dashboardSlice'
-
-type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
-type ProjectStatus = 'active' | 'completed' | 'on_hold'
-type Priority = 'low' | 'medium' | 'high' | 'critical'
-
-interface MockProject {
-  id: string
-  name: string
-  description: string
-  completionPercentage: number
-  status: ProjectStatus
-  riskLevel: RiskLevel
-  daysUntilDeadline: number
-  priority: Priority
-  manager: string
-  team: string
-}
-
-// Mock data for initial development
-const mockProjects: MockProject[] = [
-  {
-    id: '1',
-    name: 'Vulnerabilities Remediation',
-    description: 'Address critical security vulnerabilities across production systems including patch management, configuration hardening, and penetration testing remediation.',
-    completionPercentage: 65,
-    status: 'active',
-    riskLevel: 'medium',
-    daysUntilDeadline: 30,
-    priority: 'high',
-    manager: 'John Smith',
-    team: 'Security',
-  },
-  {
-    id: '2',
-    name: 'Cloud Migration Planning',
-    description: 'Plan and execute migration of on-premises infrastructure to Azure cloud including assessment, architecture design, and pilot migrations.',
-    completionPercentage: 70,
-    status: 'active',
-    riskLevel: 'low',
-    daysUntilDeadline: 60,
-    priority: 'high',
-    manager: 'Sarah Jones',
-    team: 'Cloud Services',
-  },
-  {
-    id: '3',
-    name: 'WAF/API Security',
-    description: 'Implement Web Application Firewall and API Gateway security controls to protect public-facing applications and services.',
-    completionPercentage: 65,
-    status: 'active',
-    riskLevel: 'medium',
-    daysUntilDeadline: 45,
-    priority: 'critical',
-    manager: 'Mike Wilson',
-    team: 'Security',
-  },
-  {
-    id: '4',
-    name: 'Tape Library & Backup Replacements',
-    description: 'Replace aging tape library infrastructure with modern backup solutions including disk-based backup and cloud archival integration.',
-    completionPercentage: 20,
-    status: 'active',
-    riskLevel: 'low',
-    daysUntilDeadline: 120,
-    priority: 'medium',
-    manager: 'Emily Chen',
-    team: 'IT Infrastructure',
-  },
-]
-
-const mockMilestones = {
-  recent: [
-    { id: '1', name: 'NLB Replacement', projectName: 'Infrastructure Upgrade', status: 'achieved' as const },
-    { id: '2', name: 'Exchange Node Addition', projectName: 'Email Infrastructure', status: 'achieved' as const },
-    { id: '3', name: 'Oracle 19c Migration', projectName: 'Database Upgrade', status: 'achieved' as const },
-  ],
-  upcoming: [
-    { id: '4', name: 'Production Deployment', projectName: 'WAF/API Security', targetDate: '2025-02-15' },
-    { id: '5', name: 'Phase 1 Complete', projectName: 'Cloud Migration', targetDate: '2025-03-01' },
-  ],
-}
+import { useProjectStore } from '../store/projectSlice'
 
 export default function DashboardPage() {
   const { filter, setFilter, selectedProjectId, setSelectedProjectId } = useDashboardStore()
+  const { projects, milestones, reopenProject } = useProjectStore()
+
+  // Get active and completed projects from the store
+  const activeProjects = projects.filter((p) => p.status === 'active')
+  const completedProjects = projects.filter((p) => p.status === 'completed')
 
   // Filter projects based on selected filter
-  const filteredProjects = mockProjects.filter((project) => {
+  const filteredProjects = activeProjects.filter((project) => {
     if (filter === 'all') return true
     if (filter === 'active') return project.status === 'active'
     if (filter === 'on_track') return project.riskLevel === 'low'
@@ -98,14 +23,30 @@ export default function DashboardPage() {
     return true
   })
 
-  // Calculate stats
-  const activeCount = mockProjects.filter((p) => p.status === 'active').length
-  const atRiskCount = mockProjects.filter((p) => p.riskLevel === 'medium' || p.riskLevel === 'high' || p.riskLevel === 'critical').length
-  const avgCompletion = Math.round(mockProjects.reduce((sum, p) => sum + p.completionPercentage, 0) / mockProjects.length * 10) / 10
+  // Calculate stats from active projects
+  const activeCount = activeProjects.length
+  const atRiskCount = activeProjects.filter((p) => p.riskLevel === 'medium' || p.riskLevel === 'high' || p.riskLevel === 'critical').length
+  const avgCompletion = activeProjects.length > 0
+    ? Math.round(activeProjects.reduce((sum, p) => sum + p.completionPercentage, 0) / activeProjects.length * 10) / 10
+    : 0
 
   const selectedProject = selectedProjectId
-    ? mockProjects.find((p) => p.id === selectedProjectId)
+    ? projects.find((p) => p.id === selectedProjectId)
     : null
+
+  const handleReopenProject = (projectId: string) => {
+    reopenProject(projectId)
+  }
+
+  const formatCompletedDate = (dateStr?: string) => {
+    if (!dateStr) return ''
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -132,7 +73,7 @@ export default function DashboardPage() {
           title="Active Projects"
           value={activeCount.toString()}
           icon={<FolderCheck className="text-primary-400" />}
-          trend="+1 this month"
+          trend={completedProjects.length > 0 ? `${completedProjects.length} completed` : 'No completed yet'}
           isActive={filter === 'active'}
           onClick={() => setFilter(filter === 'active' ? 'all' : 'active')}
         />
@@ -191,11 +132,60 @@ export default function DashboardPage() {
         </div>
 
         {/* Milestones */}
-        <div>
+        <div className="space-y-6">
           <MilestoneTimeline
-            recentMilestones={mockMilestones.recent}
-            upcomingMilestones={mockMilestones.upcoming}
+            recentMilestones={milestones.recent}
+            upcomingMilestones={milestones.upcoming}
           />
+
+          {/* Completed Projects / Recent Achievements */}
+          {completedProjects.length > 0 && (
+            <div className="card">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-emerald-500/20">
+                  <Trophy size={18} className="text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Recent Achievements</h3>
+                  <p className="text-xs text-slate-400">Completed projects</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {completedProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="group flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700 hover:border-emerald-500/30 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                        <FolderCheck size={18} className="text-emerald-400" />
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">{project.name}</div>
+                        <div className="text-xs text-slate-400">
+                          Completed {formatCompletedDate(project.completedAt)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded text-xs font-medium">
+                        100%
+                      </span>
+                      <button
+                        onClick={() => handleReopenProject(project.id)}
+                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-xs transition-all"
+                        title="Reopen project"
+                      >
+                        <RotateCcw size={12} />
+                        Reopen
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

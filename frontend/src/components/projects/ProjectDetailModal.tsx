@@ -10,10 +10,12 @@ import {
   AlertCircle,
   ExternalLink,
   History,
+  Save,
 } from 'lucide-react'
 import Modal from '../common/Modal'
 import TaskList from './TaskList'
 import AuditTrail from '../common/AuditTrail'
+import { useProjectStore, type TaskWithAssignees as StoreTaskWithAssignees } from '../../store/projectSlice'
 
 interface ProjectDetailModalProps {
   project: {
@@ -50,73 +52,6 @@ export interface TaskWithAssignees {
   progress: number
 }
 
-// Mock tasks for this project
-const initialMockTasks: TaskWithAssignees[] = [
-  {
-    id: 't1',
-    title: 'WAF Rule Design',
-    status: 'done',
-    assignees: ['John Smith'],
-    startDate: '2025-01-01',
-    endDate: '2025-01-15',
-    progress: 100,
-  },
-  {
-    id: 't2',
-    title: 'API Inventory',
-    status: 'done',
-    assignees: ['Sarah Jones'],
-    startDate: '2025-01-05',
-    endDate: '2025-01-12',
-    progress: 100,
-  },
-  {
-    id: 't3',
-    title: 'Test Environment Setup',
-    status: 'done',
-    assignees: ['Mike Wilson'],
-    startDate: '2025-01-10',
-    endDate: '2025-01-17',
-    progress: 100,
-  },
-  {
-    id: 't4',
-    title: 'Production WAF Deployment',
-    status: 'in_progress',
-    assignees: ['John Smith', 'Emily Chen'],
-    startDate: '2025-01-15',
-    endDate: '2025-02-05',
-    progress: 60,
-  },
-  {
-    id: 't5',
-    title: 'API Gateway Integration',
-    status: 'in_progress',
-    assignees: ['Emily Chen'],
-    startDate: '2025-01-20',
-    endDate: '2025-02-10',
-    progress: 30,
-  },
-  {
-    id: 't6',
-    title: 'Security Testing',
-    status: 'todo',
-    assignees: ['Sarah Jones', 'Mike Wilson'],
-    startDate: '2025-02-01',
-    endDate: '2025-02-15',
-    progress: 0,
-  },
-  {
-    id: 't7',
-    title: 'Documentation',
-    status: 'todo',
-    assignees: ['Mike Wilson'],
-    startDate: '2025-02-10',
-    endDate: '2025-02-20',
-    progress: 0,
-  },
-]
-
 export interface AuditLogEntry {
   id: string
   userId: string
@@ -136,8 +71,24 @@ type Tab = 'overview' | 'tasks' | 'gantt' | 'audit'
 
 export default function ProjectDetailModal({ project, onClose }: ProjectDetailModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
-  const [tasks, setTasks] = useState(initialMockTasks)
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([])
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+
+  // Get project from store
+  const { projects, updateProjectTasks } = useProjectStore()
+  const storeProject = projects.find((p) => p.id === project.id)
+
+  // Local tasks state initialized from store
+  const [tasks, setTasks] = useState<TaskWithAssignees[]>(
+    storeProject?.tasks || []
+  )
+
+  // Sync tasks when store changes
+  useEffect(() => {
+    if (storeProject?.tasks) {
+      setTasks(storeProject.tasks)
+    }
+  }, [storeProject?.tasks])
 
   // Calculate completion percentage from tasks
   const calculatedCompletion = useCallback(() => {
@@ -213,13 +164,21 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
       newValue.endDate = updates.endDate
     }
 
-    setTasks(tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t)))
+    const newTasks = tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t))
+    setTasks(newTasks)
 
     // Add audit log if there were changes
     if (changedFields.length > 0) {
       const action = changedFields.includes('status') ? 'STATUS_CHANGE' : 'UPDATE'
       addAuditLog(action, oldTask.title, oldValue, newValue, changedFields)
     }
+
+    // Auto-save to store
+    updateProjectTasks(project.id, newTasks as StoreTaskWithAssignees[])
+
+    // Show save message
+    setSaveMessage('Changes saved!')
+    setTimeout(() => setSaveMessage(null), 2000)
   }
 
   const handleTaskReorder = (draggedId: string, targetId: string) => {
@@ -234,6 +193,11 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
     setTasks(newTasks)
 
     addAuditLog('UPDATE', draggedTask.title, { position: draggedIndex }, { position: targetIndex }, ['position'])
+
+    // Auto-save to store
+    updateProjectTasks(project.id, newTasks as StoreTaskWithAssignees[])
+    setSaveMessage('Changes saved!')
+    setTimeout(() => setSaveMessage(null), 2000)
   }
 
   const completedTasks = tasks.filter((t) => t.status === 'done').length
@@ -266,13 +230,23 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
           </button>
         ))}
 
-        <Link
-          to={`/projects/${project.id}`}
-          className="ml-auto flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
-        >
-          <ExternalLink size={16} />
-          Open Full View
-        </Link>
+        <div className="ml-auto flex items-center gap-3">
+          {/* Save indicator */}
+          {saveMessage && (
+            <span className="flex items-center gap-1 text-sm text-green-400 animate-pulse">
+              <CheckCircle2 size={14} />
+              {saveMessage}
+            </span>
+          )}
+
+          <Link
+            to={`/projects/${project.id}`}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
+          >
+            <ExternalLink size={16} />
+            Open Full View
+          </Link>
+        </div>
       </div>
 
       {/* Tab Content */}
@@ -571,7 +545,7 @@ function EditableGantt({
           {tasks.map((task) => {
             const { left, width } = getTaskPosition(task.startDate, task.endDate)
             return (
-              <div key={task.id} className="flex items-center h-10 hover:bg-slate-700/30">
+              <div key={task.id} className="flex items-center h-10 hover:bg-slate-700/30 transition-colors">
                 <div className="w-48 shrink-0 px-3 text-sm text-white truncate">{task.title}</div>
                 <div className="flex-1 relative h-full flex items-center px-2">
                   {/* Background grid */}
@@ -583,13 +557,13 @@ function EditableGantt({
 
                   {/* Task bar - draggable */}
                   <div
-                    className={`absolute h-5 rounded ${statusColors[task.status]} opacity-80 cursor-move group`}
+                    className={`absolute h-5 rounded ${statusColors[task.status]} opacity-80 cursor-move group transition-all duration-150 hover:opacity-100 hover:shadow-lg`}
                     style={{ left: `${left}%`, width: `${width}%`, minWidth: '20px' }}
                     onMouseDown={(e) => handleMouseDown(e, task.id, 'move')}
                   >
                     {/* Left resize handle */}
                     <div
-                      className="absolute left-0 top-0 w-2 h-full cursor-ew-resize bg-white/0 hover:bg-white/30 rounded-l"
+                      className="absolute left-0 top-0 w-2 h-full cursor-ew-resize bg-white/0 hover:bg-white/30 rounded-l transition-colors"
                       onMouseDown={(e) => {
                         e.stopPropagation()
                         handleMouseDown(e, task.id, 'resize-start')
@@ -606,7 +580,7 @@ function EditableGantt({
 
                     {/* Right resize handle */}
                     <div
-                      className="absolute right-0 top-0 w-2 h-full cursor-ew-resize bg-white/0 hover:bg-white/30 rounded-r"
+                      className="absolute right-0 top-0 w-2 h-full cursor-ew-resize bg-white/0 hover:bg-white/30 rounded-r transition-colors"
                       onMouseDown={(e) => {
                         e.stopPropagation()
                         handleMouseDown(e, task.id, 'resize-end')

@@ -14,12 +14,15 @@ import {
   ArrowUp,
   ArrowDown,
   X,
+  RotateCcw,
+  MoveRight,
+  Archive,
 } from 'lucide-react'
 import { useProjectStore, type Project, type RiskLevel, type Priority, type ProjectStatus } from '../store/projectSlice'
 import ProjectDetailModal from '../components/projects/ProjectDetailModal'
 
-type TabType = 'active' | 'completed' | 'upcoming'
-type SortDirection = 'asc' | 'desc' | null
+type TabType = 'active' | 'completed' | 'upcoming' | 'deleted'
+type SortType = 'custom' | 'date_asc' | 'date_desc' | 'name_asc' | 'name_desc'
 
 const teamOptions = ['Security', 'Cloud Services', 'IT Infrastructure', 'DevOps', 'Engineering']
 const managerOptions = ['John Smith', 'Sarah Jones', 'Mike Wilson', 'Emily Chen', 'David Lee']
@@ -30,7 +33,8 @@ export default function ProjectsPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [showNewProjectModal, setShowNewProjectModal] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
-  const [sortDirection, setSortDirection] = useState<SortDirection>(null)
+  const [permanentDeleteId, setPermanentDeleteId] = useState<string | null>(null)
+  const [sortType, setSortType] = useState<SortType>('custom')
 
   // Filter states
   const [yearFilter, setYearFilter] = useState<string>('all')
@@ -53,7 +57,16 @@ export default function ProjectsPage() {
     daysUntilDeadline: 30,
   })
 
-  const { projects, addProject, deleteProject, reorderProjects } = useProjectStore()
+  const {
+    projects,
+    addProject,
+    softDeleteProject,
+    restoreProject,
+    permanentDeleteProject,
+    reorderProjects,
+    moveToUpcoming,
+    moveToActive,
+  } = useProjectStore()
 
   // Get years and months for filters
   const currentYear = new Date().getFullYear()
@@ -73,9 +86,12 @@ export default function ProjectsPage() {
     { value: '12', label: 'December' },
   ]
 
-  // Filter projects by search term and date filters
+  // Filter projects by search term and date filters (excluding deleted)
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
+      // Exclude deleted projects from main filters
+      if (project.isDeleted) return false
+
       const matchesSearch =
         project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         project.description.toLowerCase().includes(searchTerm.toLowerCase())
@@ -95,13 +111,31 @@ export default function ProjectsPage() {
 
   // Sort projects
   const sortedProjects = useMemo(() => {
-    if (!sortDirection) return filteredProjects
+    if (sortType === 'custom') return filteredProjects
 
     return [...filteredProjects].sort((a, b) => {
-      const comparison = a.name.localeCompare(b.name)
-      return sortDirection === 'asc' ? comparison : -comparison
+      switch (sortType) {
+        case 'name_asc':
+          return a.name.localeCompare(b.name)
+        case 'name_desc':
+          return b.name.localeCompare(a.name)
+        case 'date_asc':
+          return a.daysUntilDeadline - b.daysUntilDeadline
+        case 'date_desc':
+          return b.daysUntilDeadline - a.daysUntilDeadline
+        default:
+          return 0
+      }
     })
-  }, [filteredProjects, sortDirection])
+  }, [filteredProjects, sortType])
+
+  // Get deleted projects
+  const deletedProjects = useMemo(() => {
+    return projects.filter((p) => p.isDeleted).filter((project) =>
+      project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      project.description.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  }, [projects, searchTerm])
 
   // Categorize projects by status
   const activeProjects = useMemo(
@@ -128,6 +162,8 @@ export default function ProjectsPage() {
         return completedProjects
       case 'upcoming':
         return upcomingProjects
+      case 'deleted':
+        return deletedProjects
       default:
         return activeProjects
     }
@@ -141,6 +177,7 @@ export default function ProjectsPage() {
     { id: 'active' as TabType, label: 'Active Projects', icon: FolderOpen, count: activeProjects.length },
     { id: 'completed' as TabType, label: 'Completed Projects', icon: CheckCircle2, count: completedProjects.length },
     { id: 'upcoming' as TabType, label: 'Upcoming Projects', icon: Clock, count: upcomingProjects.length },
+    { id: 'deleted' as TabType, label: 'Deleted Projects', icon: Archive, count: deletedProjects.length },
   ]
 
   const formatDeadline = (daysUntilDeadline: number) => {
@@ -194,15 +231,50 @@ export default function ProjectsPage() {
     })
   }
 
-  const handleDeleteProject = (projectId: string) => {
-    deleteProject(projectId)
+  const handleSoftDelete = (projectId: string) => {
+    softDeleteProject(projectId)
     setDeleteConfirmId(null)
   }
 
-  const toggleSort = () => {
-    if (sortDirection === null) setSortDirection('asc')
-    else if (sortDirection === 'asc') setSortDirection('desc')
-    else setSortDirection(null)
+  const handleRestore = (projectId: string) => {
+    restoreProject(projectId)
+  }
+
+  const handlePermanentDelete = (projectId: string) => {
+    permanentDeleteProject(projectId)
+    setPermanentDeleteId(null)
+  }
+
+  const handleMoveToUpcoming = (projectId: string) => {
+    moveToUpcoming(projectId)
+  }
+
+  const handleMoveToActive = (projectId: string) => {
+    moveToActive(projectId)
+  }
+
+  const cycleSortType = () => {
+    const sortOrder: SortType[] = ['custom', 'date_asc', 'date_desc', 'name_asc', 'name_desc']
+    const currentIndex = sortOrder.indexOf(sortType)
+    const nextIndex = (currentIndex + 1) % sortOrder.length
+    setSortType(sortOrder[nextIndex])
+  }
+
+  const getSortLabel = () => {
+    switch (sortType) {
+      case 'custom':
+        return 'Custom Order'
+      case 'date_asc':
+        return 'Date (Earliest)'
+      case 'date_desc':
+        return 'Date (Latest)'
+      case 'name_asc':
+        return 'Name (A-Z)'
+      case 'name_desc':
+        return 'Name (Z-A)'
+      default:
+        return 'Sort'
+    }
   }
 
   // Drag and drop handlers
@@ -226,6 +298,8 @@ export default function ProjectsPage() {
     e.preventDefault()
     if (draggedProjectId && draggedProjectId !== targetId) {
       reorderProjects(draggedProjectId, targetId)
+      // Reset to custom order when manually reordering
+      setSortType('custom')
     }
     setDraggedProjectId(null)
     setDragOverProjectId(null)
@@ -262,7 +336,7 @@ export default function ProjectsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 bg-slate-800/50 p-1 rounded-lg w-fit">
+      <div className="flex items-center gap-1 bg-slate-800/50 p-1 rounded-lg w-fit flex-wrap">
         {tabs.map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
@@ -272,7 +346,9 @@ export default function ProjectsPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
                 isActive
-                  ? 'bg-primary-500 text-white'
+                  ? tab.id === 'deleted'
+                    ? 'bg-red-500/80 text-white'
+                    : 'bg-primary-500 text-white'
                   : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
               }`}
             >
@@ -280,7 +356,11 @@ export default function ProjectsPage() {
               {tab.label}
               <span
                 className={`px-2 py-0.5 rounded-full text-xs ${
-                  isActive ? 'bg-primary-600 text-white' : 'bg-slate-700 text-slate-400'
+                  isActive
+                    ? tab.id === 'deleted'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-primary-600 text-white'
+                    : 'bg-slate-700 text-slate-400'
                 }`}
               >
                 {tab.count}
@@ -304,35 +384,37 @@ export default function ProjectsPage() {
         </div>
 
         {/* Filter Toggle Button */}
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`btn-secondary flex items-center gap-2 ${showFilters ? 'bg-primary-500/20 border-primary-500' : ''}`}
-        >
-          <Filter size={18} />
-          Filters
-          {hasActiveFilters && (
-            <span className="w-2 h-2 rounded-full bg-primary-500" />
-          )}
-        </button>
+        {activeTab !== 'deleted' && (
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`btn-secondary flex items-center gap-2 ${showFilters ? 'bg-primary-500/20 border-primary-500' : ''}`}
+          >
+            <Filter size={18} />
+            Filters
+            {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-primary-500" />}
+          </button>
+        )}
 
         {/* Sort Button */}
-        <button
-          onClick={toggleSort}
-          className={`btn-secondary flex items-center gap-2 ${sortDirection ? 'bg-primary-500/20 border-primary-500' : ''}`}
-        >
-          {sortDirection === 'asc' ? (
-            <ArrowUp size={18} />
-          ) : sortDirection === 'desc' ? (
-            <ArrowDown size={18} />
-          ) : (
-            <ArrowUpDown size={18} />
-          )}
-          Sort {sortDirection === 'asc' ? '(A-Z)' : sortDirection === 'desc' ? '(Z-A)' : ''}
-        </button>
+        {activeTab !== 'deleted' && (
+          <button
+            onClick={cycleSortType}
+            className={`btn-secondary flex items-center gap-2 ${sortType !== 'custom' ? 'bg-primary-500/20 border-primary-500' : ''}`}
+          >
+            {sortType === 'date_asc' || sortType === 'name_asc' ? (
+              <ArrowUp size={18} />
+            ) : sortType === 'date_desc' || sortType === 'name_desc' ? (
+              <ArrowDown size={18} />
+            ) : (
+              <ArrowUpDown size={18} />
+            )}
+            {getSortLabel()}
+          </button>
+        )}
       </div>
 
       {/* Expanded Filters */}
-      {showFilters && (
+      {showFilters && activeTab !== 'deleted' && (
         <div className="bg-slate-800/50 rounded-lg border border-slate-700 p-4 animate-in slide-in-from-top-2 duration-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-white font-medium">Filter by Target Date</h3>
@@ -385,9 +467,11 @@ export default function ProjectsPage() {
       )}
 
       {/* Drag Hint */}
-      <div className="text-xs text-slate-500">
-        Drag projects to reorder. Click on a project to view details.
-      </div>
+      {activeTab !== 'deleted' && (
+        <div className="text-xs text-slate-500">
+          Drag projects to reorder. Click on a project to view details.
+        </div>
+      )}
 
       {/* Projects Grid */}
       {currentProjects.length > 0 ? (
@@ -398,8 +482,12 @@ export default function ProjectsPage() {
               project={project}
               formatDeadline={formatDeadline}
               formatCompletedDate={formatCompletedDate}
-              onClick={() => setSelectedProjectId(project.id)}
+              onClick={() => !project.isDeleted && setSelectedProjectId(project.id)}
               onDelete={() => setDeleteConfirmId(project.id)}
+              onRestore={() => handleRestore(project.id)}
+              onPermanentDelete={() => setPermanentDeleteId(project.id)}
+              onMoveToUpcoming={() => handleMoveToUpcoming(project.id)}
+              onMoveToActive={() => handleMoveToActive(project.id)}
               isDragging={draggedProjectId === project.id}
               isDragOver={dragOverProjectId === project.id}
               onDragStart={(e) => handleDragStart(e, project.id)}
@@ -407,6 +495,7 @@ export default function ProjectsPage() {
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, project.id)}
               onDragEnd={handleDragEnd}
+              isDeletedTab={activeTab === 'deleted'}
             />
           ))}
         </div>
@@ -422,13 +511,15 @@ export default function ProjectsPage() {
               ? 'Projects with "on hold" status will appear here'
               : activeTab === 'completed'
               ? 'Completed projects will appear here'
+              : activeTab === 'deleted'
+              ? 'Deleted projects can be restored from here'
               : 'Create a new project to get started'}
           </p>
         </div>
       )}
 
       {/* Project Detail Modal with Animation */}
-      {selectedProject && (
+      {selectedProject && !selectedProject.isDeleted && (
         <div className="fixed inset-0 z-50 flex items-center justify-center animate-in fade-in duration-200">
           <div
             className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"
@@ -606,7 +697,7 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Soft Delete Confirmation Modal */}
       {deleteConfirmId && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center animate-in fade-in duration-150"
@@ -618,16 +709,16 @@ export default function ProjectsPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mb-4">
-                <AlertTriangle size={24} className="text-red-400" />
+              <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center mb-4">
+                <Archive size={24} className="text-yellow-400" />
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Delete Project</h3>
+              <h3 className="text-lg font-semibold text-white mb-2">Move to Deleted</h3>
               <p className="text-slate-400 text-sm mb-6">
                 Are you sure you want to delete{' '}
                 <span className="text-white font-medium">
                   "{projects.find((p) => p.id === deleteConfirmId)?.name}"
                 </span>
-                ? This action cannot be undone.
+                ? You can restore it later from the Deleted Projects tab.
               </p>
               <div className="flex items-center gap-3 w-full">
                 <button
@@ -637,10 +728,52 @@ export default function ProjectsPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleDeleteProject(deleteConfirmId)}
-                  className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+                  onClick={() => handleSoftDelete(deleteConfirmId)}
+                  className="flex-1 px-4 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Delete Confirmation Modal */}
+      {permanentDeleteId && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center animate-in fade-in duration-150"
+          onClick={() => setPermanentDeleteId(null)}
+        >
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+          <div
+            className="relative bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-6 w-80 max-w-[90vw] animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mb-4">
+                <AlertTriangle size={24} className="text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">Permanently Delete</h3>
+              <p className="text-slate-400 text-sm mb-6">
+                Are you sure you want to permanently delete{' '}
+                <span className="text-white font-medium">
+                  "{projects.find((p) => p.id === permanentDeleteId)?.name}"
+                </span>
+                ? This action cannot be undone.
+              </p>
+              <div className="flex items-center gap-3 w-full">
+                <button
+                  onClick={() => setPermanentDeleteId(null)}
+                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handlePermanentDelete(permanentDeleteId)}
+                  className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Delete Forever
                 </button>
               </div>
             </div>
@@ -657,6 +790,10 @@ function ProjectCard({
   formatCompletedDate,
   onClick,
   onDelete,
+  onRestore,
+  onPermanentDelete,
+  onMoveToUpcoming,
+  onMoveToActive,
   isDragging,
   isDragOver,
   onDragStart,
@@ -664,12 +801,17 @@ function ProjectCard({
   onDragLeave,
   onDrop,
   onDragEnd,
+  isDeletedTab,
 }: {
   project: Project
   formatDeadline: (days: number) => string
   formatCompletedDate: (dateStr?: string) => string
   onClick: () => void
   onDelete: () => void
+  onRestore: () => void
+  onPermanentDelete: () => void
+  onMoveToUpcoming: () => void
+  onMoveToActive: () => void
   isDragging: boolean
   isDragOver: boolean
   onDragStart: (e: React.DragEvent) => void
@@ -677,6 +819,7 @@ function ProjectCard({
   onDragLeave: () => void
   onDrop: (e: React.DragEvent) => void
   onDragEnd: () => void
+  isDeletedTab: boolean
 }) {
   const statusConfig: Record<string, { bg: string; text: string; border: string; label: string }> = {
     active: { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20', label: 'Active' },
@@ -693,6 +836,50 @@ function ProjectCard({
 
   const status = statusConfig[project.status] || statusConfig.active
   const risk = riskConfig[project.riskLevel] || riskConfig.low
+
+  if (isDeletedTab) {
+    // Deleted project card - different styling and actions
+    return (
+      <div className="card border-red-500/20 bg-slate-800/30 relative group">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-slate-400 font-semibold text-lg truncate">{project.name}</h3>
+            <p className="text-slate-500 text-sm mt-1 line-clamp-2">{project.description}</p>
+          </div>
+        </div>
+
+        {/* Deleted info */}
+        <div className="text-xs text-red-400 mb-4">
+          Deleted {formatCompletedDate(project.deletedAt)}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onRestore()
+            }}
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg text-sm font-medium transition-colors"
+          >
+            <RotateCcw size={16} />
+            Restore
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onPermanentDelete()
+            }}
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Trash2 size={16} />
+            Delete Forever
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -711,17 +898,45 @@ function ProjectCard({
         <GripVertical size={16} />
       </div>
 
-      {/* Delete Button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onDelete()
-        }}
-        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-red-500/20 rounded-lg text-slate-500 hover:text-red-400"
-        title="Delete project"
-      >
-        <Trash2 size={16} />
-      </button>
+      {/* Action Buttons */}
+      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+        {/* Move to Upcoming/Active button */}
+        {project.status === 'active' && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onMoveToUpcoming()
+            }}
+            className="p-1.5 hover:bg-yellow-500/20 rounded-lg text-slate-500 hover:text-yellow-400 transition-colors"
+            title="Move to Upcoming"
+          >
+            <Clock size={16} />
+          </button>
+        )}
+        {project.status === 'on_hold' && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onMoveToActive()
+            }}
+            className="p-1.5 hover:bg-green-500/20 rounded-lg text-slate-500 hover:text-green-400 transition-colors"
+            title="Move to Active"
+          >
+            <MoveRight size={16} />
+          </button>
+        )}
+        {/* Delete Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete()
+          }}
+          className="p-1.5 hover:bg-red-500/20 rounded-lg text-slate-500 hover:text-red-400 transition-colors"
+          title="Delete project"
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
 
       <div onClick={onClick} className="pt-2">
         {/* Header */}

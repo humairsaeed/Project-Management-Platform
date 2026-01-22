@@ -28,6 +28,8 @@ export interface Project {
   team: string
   tasks: TaskWithAssignees[]
   completedAt?: string // When project was marked as complete
+  isDeleted?: boolean // Soft delete flag
+  deletedAt?: string // When project was deleted
 }
 
 export interface Milestone {
@@ -140,16 +142,22 @@ interface ProjectState {
   // Actions
   addProject: (project: Project) => void
   deleteProject: (projectId: string) => void
+  softDeleteProject: (projectId: string) => void
+  restoreProject: (projectId: string) => void
+  permanentDeleteProject: (projectId: string) => void
   reorderProjects: (draggedId: string, targetId: string) => void
   updateProject: (projectId: string, updates: Partial<Project>) => void
   updateProjectTasks: (projectId: string, tasks: TaskWithAssignees[]) => void
   updateProjectCompletion: (projectId: string, completion: number) => void
   completeProject: (projectId: string) => void
   reopenProject: (projectId: string) => void
+  moveToUpcoming: (projectId: string) => void
+  moveToActive: (projectId: string) => void
   addMilestone: (milestone: Milestone, type: 'recent' | 'upcoming') => void
   moveMilestoneToRecent: (milestoneId: string) => void
   getActiveProjects: () => Project[]
   getCompletedProjects: () => Project[]
+  getDeletedProjects: () => Project[]
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -165,6 +173,32 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       deleteProject: (projectId) => {
+        set((state) => ({
+          projects: state.projects.filter((p) => p.id !== projectId),
+        }))
+      },
+
+      softDeleteProject: (projectId) => {
+        set((state) => ({
+          projects: state.projects.map((p) =>
+            p.id === projectId
+              ? { ...p, isDeleted: true, deletedAt: new Date().toISOString() }
+              : p
+          ),
+        }))
+      },
+
+      restoreProject: (projectId) => {
+        set((state) => ({
+          projects: state.projects.map((p) =>
+            p.id === projectId
+              ? { ...p, isDeleted: false, deletedAt: undefined }
+              : p
+          ),
+        }))
+      },
+
+      permanentDeleteProject: (projectId) => {
         set((state) => ({
           projects: state.projects.filter((p) => p.id !== projectId),
         }))
@@ -263,6 +297,26 @@ export const useProjectStore = create<ProjectState>()(
         }))
       },
 
+      moveToUpcoming: (projectId) => {
+        set((state) => ({
+          projects: state.projects.map((p) =>
+            p.id === projectId
+              ? { ...p, status: 'on_hold' as ProjectStatus }
+              : p
+          ),
+        }))
+      },
+
+      moveToActive: (projectId) => {
+        set((state) => ({
+          projects: state.projects.map((p) =>
+            p.id === projectId
+              ? { ...p, status: 'active' as ProjectStatus }
+              : p
+          ),
+        }))
+      },
+
       addMilestone: (milestone, type) => {
         set((state) => ({
           milestones: {
@@ -292,11 +346,15 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       getActiveProjects: () => {
-        return get().projects.filter((p) => p.status === 'active')
+        return get().projects.filter((p) => p.status === 'active' && !p.isDeleted)
       },
 
       getCompletedProjects: () => {
-        return get().projects.filter((p) => p.status === 'completed')
+        return get().projects.filter((p) => p.status === 'completed' && !p.isDeleted)
+      },
+
+      getDeletedProjects: () => {
+        return get().projects.filter((p) => p.isDeleted)
       },
     }),
     {

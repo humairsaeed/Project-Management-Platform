@@ -143,7 +143,7 @@ export default function Header() {
                 {searchResults.map((project) => (
                   <button
                     key={project.id}
-                    onClick={() => handleSearchSelect(project.id)}
+                    onClick={() => handleSearchSelect()}
                     className="w-full px-4 py-3 flex items-start gap-3 hover:bg-slate-700/50 transition-colors text-left"
                   >
                     <div className="mt-0.5">{getStatusIcon(project.status)}</div>

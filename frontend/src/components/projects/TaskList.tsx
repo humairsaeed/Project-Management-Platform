@@ -10,6 +10,8 @@ import {
   ChevronDown,
   ChevronUp,
   GripVertical,
+  Plus,
+  Trash2,
 } from 'lucide-react'
 import type { TaskWithAssignees } from './ProjectDetailModal'
 import Avatar, { AvatarGroup } from '../common/Avatar'
@@ -23,6 +25,8 @@ interface TaskListProps {
   tasks: TaskWithAssignees[]
   onTaskUpdate: (taskId: string, updates: Partial<TaskWithAssignees>) => void
   onTaskReorder?: (draggedId: string, targetId: string) => void
+  onTaskAdd?: (task: TaskWithAssignees) => void
+  onTaskDelete?: (taskId: string) => void
   teamMembers?: TeamMember[]
 }
 
@@ -30,6 +34,8 @@ export default function TaskList({
   tasks,
   onTaskUpdate,
   onTaskReorder,
+  onTaskAdd,
+  onTaskDelete,
   teamMembers = [],
 }: TaskListProps) {
   const [editingTask, setEditingTask] = useState<string | null>(null)
@@ -37,6 +43,8 @@ export default function TaskList({
   const [draggedTask, setDraggedTask] = useState<string | null>(null)
   const [dragOverTask, setDragOverTask] = useState<string | null>(null)
   const [dropIndicator, setDropIndicator] = useState<'above' | 'below' | null>(null)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newTaskTitle, setNewTaskTitle] = useState('')
 
   const statusOptions = [
     { value: 'todo', label: 'To Do', color: 'bg-slate-500' },
@@ -91,6 +99,28 @@ export default function TaskList({
     setDropIndicator(null)
   }
 
+  const handleAddTask = () => {
+    if (!newTaskTitle.trim() || !onTaskAdd) return
+
+    const today = new Date()
+    const nextWeek = new Date(today)
+    nextWeek.setDate(nextWeek.getDate() + 7)
+
+    const newTask: TaskWithAssignees = {
+      id: `t${Date.now()}`,
+      title: newTaskTitle.trim(),
+      status: 'todo',
+      assignees: [],
+      startDate: today.toISOString().split('T')[0],
+      endDate: nextWeek.toISOString().split('T')[0],
+      progress: 0,
+    }
+
+    onTaskAdd(newTask)
+    setNewTaskTitle('')
+    setShowAddForm(false)
+  }
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between mb-4">
@@ -134,6 +164,7 @@ export default function TaskList({
             onToggleExpand={() =>
               setExpandedTask(expandedTask === task.id ? null : task.id)
             }
+            onDelete={onTaskDelete ? () => onTaskDelete(task.id) : undefined}
             onDragStart={(e) => handleDragStart(e, task.id)}
             onDragOver={(e) => handleDragOver(e, task.id)}
             onDragLeave={handleDragLeave}
@@ -142,9 +173,61 @@ export default function TaskList({
             getStatusIcon={getStatusIcon}
             teamMembers={teamMembers}
             animationDelay={index * 50}
+            zIndex={tasks.length - index}
           />
         ))}
       </div>
+
+      {/* Add Task Button / Form */}
+      {onTaskAdd && (
+        <div className="mt-4">
+          {showAddForm ? (
+            <div className="bg-slate-800/50 rounded-lg border border-slate-700 p-4 animate-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddTask()
+                    if (e.key === 'Escape') {
+                      setShowAddForm(false)
+                      setNewTaskTitle('')
+                    }
+                  }}
+                  placeholder="Enter task title..."
+                  className="flex-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors"
+                  autoFocus
+                />
+                <button
+                  onClick={handleAddTask}
+                  disabled={!newTaskTitle.trim()}
+                  className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded text-sm font-medium transition-colors"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAddForm(false)
+                    setNewTaskTitle('')
+                  }}
+                  className="p-2 hover:bg-slate-700 text-slate-400 hover:text-white rounded transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-700 hover:border-primary-500/50 rounded-lg text-slate-400 hover:text-primary-400 transition-all hover:bg-slate-800/30"
+            >
+              <Plus size={18} />
+              Add New Task
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -160,6 +243,7 @@ function TaskRow({
   onSave,
   onCancel,
   onToggleExpand,
+  onDelete,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -168,6 +252,7 @@ function TaskRow({
   getStatusIcon,
   teamMembers,
   animationDelay,
+  zIndex,
 }: {
   task: TaskWithAssignees
   isEditing: boolean
@@ -179,6 +264,7 @@ function TaskRow({
   onSave: (updates: Partial<TaskWithAssignees>) => void
   onCancel: () => void
   onToggleExpand: () => void
+  onDelete?: () => void
   onDragStart: (e: React.DragEvent) => void
   onDragOver: (e: React.DragEvent) => void
   onDragLeave: () => void
@@ -187,10 +273,12 @@ function TaskRow({
   getStatusIcon: (status: string) => React.ReactNode
   teamMembers: TeamMember[]
   animationDelay: number
+  zIndex: number
 }) {
   const [editedTask, setEditedTask] = useState(task)
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
     setEditedTask(task)
@@ -245,6 +333,7 @@ function TaskRow({
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDragEnd={onDragEnd}
+      style={{ zIndex: isExpanded ? 100 : zIndex }}
       className={`relative bg-slate-800/50 rounded-lg border transition-all duration-300 ease-out
         ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
         ${isExpanded ? 'border-primary-500/50 shadow-lg shadow-primary-500/10' : 'border-slate-700'}
@@ -354,6 +443,18 @@ function TaskRow({
                 <Edit2 size={14} />
               </button>
 
+              {onDelete && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowDeleteConfirm(true)
+                  }}
+                  className="p-1.5 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all hover:scale-110"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+
               <div className="transition-transform duration-200">
                 {isExpanded ? (
                   <ChevronUp size={18} className="text-slate-400" />
@@ -366,10 +467,40 @@ function TaskRow({
         </div>
       </div>
 
+      {/* Delete Confirmation */}
+      {showDeleteConfirm && (
+        <div className="absolute inset-0 bg-slate-900/95 rounded-lg flex items-center justify-center z-50">
+          <div className="text-center p-4">
+            <p className="text-white mb-3">Delete "{task.title}"?</p>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete?.()
+                  setShowDeleteConfirm(false)
+                }}
+                className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded text-sm transition-colors"
+              >
+                Delete
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowDeleteConfirm(false)
+                }}
+                className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Expanded Details */}
       <div
-        className={`overflow-hidden transition-all duration-300 ease-out ${
-          isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+        className={`overflow-visible transition-all duration-300 ease-out ${
+          isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'
         }`}
       >
         <div className="px-4 pb-4 pt-2 border-t border-slate-700">
@@ -428,34 +559,35 @@ function TaskRow({
                   <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${showAssigneeDropdown ? 'rotate-180' : ''}`} />
                 </button>
 
-                {/* Dropdown with animation */}
-                <div
-                  className={`absolute z-10 mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden transition-all duration-200 ${
-                    showAssigneeDropdown ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
-                  }`}
-                >
-                  <div className="max-h-48 overflow-auto">
-                    {teamMembers.map((member) => (
-                      <label
-                        key={member.id}
-                        className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-700/70 cursor-pointer transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={editedTask.assignees.includes(member.name)}
-                          onChange={() => toggleAssignee(member.name)}
-                          className="rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500 focus:ring-offset-0"
-                        />
-                        <Avatar name={member.name} size="sm" showTooltip={false} />
-                        <span className="text-white text-sm">{member.name}</span>
-                        {editedTask.assignees.includes(member.name) && (
-                          <CheckCircle2 size={14} className="text-green-400 ml-auto" />
-                        )}
-                      </label>
-                    ))}
+                {/* Dropdown with higher z-index */}
+                {showAssigneeDropdown && (
+                  <div
+                    className="absolute z-[200] mt-1 w-full bg-slate-800 border border-slate-600 rounded-lg shadow-2xl"
+                    style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}
+                  >
+                    <div className="max-h-48 overflow-auto py-1">
+                      {teamMembers.map((member) => (
+                        <label
+                          key={member.id}
+                          className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-700/70 cursor-pointer transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editedTask.assignees.includes(member.name)}
+                            onChange={() => toggleAssignee(member.name)}
+                            className="rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500 focus:ring-offset-0"
+                          />
+                          <Avatar name={member.name} size="sm" showTooltip={false} />
+                          <span className="text-white text-sm">{member.name}</span>
+                          {editedTask.assignees.includes(member.name) && (
+                            <CheckCircle2 size={14} className="text-green-400 ml-auto" />
+                          )}
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           ) : (

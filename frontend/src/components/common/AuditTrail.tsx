@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
-import { Clock, User, FileText, ArrowRight, Filter, ChevronDown, ChevronUp } from 'lucide-react'
+import { Clock, FileText, ArrowRight, Filter, ChevronDown, ChevronUp, Users } from 'lucide-react'
 import type { AuditLogEntry } from '../projects/ProjectDetailModal'
+import Avatar from './Avatar'
 
 // Initial mock audit logs for the project
 const initialMockAuditLogs: AuditLogEntry[] = [
@@ -83,6 +84,7 @@ interface Props {
 
 export default function AuditTrail({ projectId: _projectId, externalLogs = [] }: Props) {
   const [actionFilter, setActionFilter] = useState<string>('all')
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all')
   const [expandedLog, setExpandedLog] = useState<string | null>(null)
 
   // Combine external logs (from live edits) with mock data
@@ -92,11 +94,20 @@ export default function AuditTrail({ projectId: _projectId, externalLogs = [] }:
     return combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   }, [externalLogs])
 
+  // Get unique assignees for filter dropdown
+  const uniqueAssignees = useMemo(() => {
+    const names = new Set<string>()
+    allLogs.forEach((log) => names.add(log.userName))
+    return Array.from(names).sort()
+  }, [allLogs])
+
   const filteredLogs = useMemo(() => {
-    return allLogs.filter(
-      (log) => actionFilter === 'all' || log.action === actionFilter
-    )
-  }, [allLogs, actionFilter])
+    return allLogs.filter((log) => {
+      const matchesAction = actionFilter === 'all' || log.action === actionFilter
+      const matchesAssignee = assigneeFilter === 'all' || log.userName === assigneeFilter
+      return matchesAction && matchesAssignee
+    })
+  }, [allLogs, actionFilter, assigneeFilter])
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -140,24 +151,44 @@ export default function AuditTrail({ projectId: _projectId, externalLogs = [] }:
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-lg font-semibold text-white">Change History</h2>
           <p className="text-sm text-slate-400">Track all changes made to this project</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Filter size={16} className="text-slate-400" />
-          <select
-            value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value)}
-            className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-sm text-white focus:outline-none focus:border-primary-500"
-          >
-            <option value="all">All Actions</option>
-            <option value="CREATE">Created</option>
-            <option value="UPDATE">Updated</option>
-            <option value="DELETE">Deleted</option>
-            <option value="STATUS_CHANGE">Status Changes</option>
-          </select>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Assignee Filter */}
+          <div className="flex items-center gap-2">
+            <Users size={16} className="text-slate-400" />
+            <select
+              value={assigneeFilter}
+              onChange={(e) => setAssigneeFilter(e.target.value)}
+              className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-sm text-white focus:outline-none focus:border-primary-500"
+            >
+              <option value="all">All Users</option>
+              {uniqueAssignees.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Action Filter */}
+          <div className="flex items-center gap-2">
+            <Filter size={16} className="text-slate-400" />
+            <select
+              value={actionFilter}
+              onChange={(e) => setActionFilter(e.target.value)}
+              className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-sm text-white focus:outline-none focus:border-primary-500"
+            >
+              <option value="all">All Actions</option>
+              <option value="CREATE">Created</option>
+              <option value="UPDATE">Updated</option>
+              <option value="DELETE">Deleted</option>
+              <option value="STATUS_CHANGE">Status Changes</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -185,8 +216,8 @@ export default function AuditTrail({ projectId: _projectId, externalLogs = [] }:
                     </div>
                     <div className="mt-1 text-white font-medium">{log.recordName}</div>
                     <div className="mt-1 flex items-center gap-2 text-sm text-slate-400">
-                      <User size={14} />
-                      {log.userName}
+                      <Avatar name={log.userName} size="sm" />
+                      <span>{log.userName}</span>
                       <span className="text-slate-600">•</span>
                       <Clock size={14} />
                       {formatDate(log.createdAt)}

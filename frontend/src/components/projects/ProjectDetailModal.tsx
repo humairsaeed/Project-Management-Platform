@@ -10,11 +10,15 @@ import {
   AlertCircle,
   ExternalLink,
   History,
+  Edit2,
+  ChevronDown,
+  X,
 } from 'lucide-react'
 import Modal from '../common/Modal'
 import TaskList from './TaskList'
 import AuditTrail from '../common/AuditTrail'
-import { useProjectStore, type TaskWithAssignees as StoreTaskWithAssignees } from '../../store/projectSlice'
+import Avatar, { AvatarGroup } from '../common/Avatar'
+import { useProjectStore, type TaskWithAssignees as StoreTaskWithAssignees, type RiskLevel } from '../../store/projectSlice'
 
 interface ProjectDetailModalProps {
   project: {
@@ -74,7 +78,7 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
   // Get project from store
-  const { projects, updateProjectTasks } = useProjectStore()
+  const { projects, updateProjectTasks, updateProject } = useProjectStore()
   const storeProject = projects.find((p) => p.id === project.id)
 
   // Local tasks state initialized from store
@@ -109,14 +113,15 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
     recordName: string,
     oldValue: Record<string, unknown> | null,
     newValue: Record<string, unknown> | null,
-    changedFields: string[]
+    changedFields: string[],
+    tableName = 'projects.tasks'
   ) => {
     const newLog: AuditLogEntry = {
       id: `log-${Date.now()}`,
       userId: '1',
       userEmail: 'admin@company.com',
       userName: 'System Admin',
-      tableName: 'projects.tasks',
+      tableName,
       recordId: project.id,
       recordName,
       action,
@@ -199,10 +204,55 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
     setTimeout(() => setSaveMessage(null), 2000)
   }
 
+  const handleTaskAdd = (newTask: TaskWithAssignees) => {
+    const newTasks = [...tasks, newTask]
+    setTasks(newTasks)
+
+    addAuditLog('CREATE', newTask.title, null, { title: newTask.title, status: newTask.status }, [])
+
+    // Auto-save to store
+    updateProjectTasks(project.id, newTasks as StoreTaskWithAssignees[])
+    setSaveMessage('Task added!')
+    setTimeout(() => setSaveMessage(null), 2000)
+  }
+
+  const handleTaskDelete = (taskId: string) => {
+    const deletedTask = tasks.find((t) => t.id === taskId)
+    if (!deletedTask) return
+
+    const newTasks = tasks.filter((t) => t.id !== taskId)
+    setTasks(newTasks)
+
+    addAuditLog('DELETE', deletedTask.title, { title: deletedTask.title, status: deletedTask.status }, null, [])
+
+    // Auto-save to store
+    updateProjectTasks(project.id, newTasks as StoreTaskWithAssignees[])
+    setSaveMessage('Task deleted!')
+    setTimeout(() => setSaveMessage(null), 2000)
+  }
+
+  const handleRiskLevelChange = (newRiskLevel: RiskLevel) => {
+    const oldRiskLevel = storeProject?.riskLevel
+    if (oldRiskLevel === newRiskLevel) return
+
+    updateProject(project.id, { riskLevel: newRiskLevel })
+    addAuditLog(
+      'UPDATE',
+      project.name,
+      { riskLevel: oldRiskLevel },
+      { riskLevel: newRiskLevel },
+      ['riskLevel'],
+      'projects'
+    )
+    setSaveMessage('Risk level updated!')
+    setTimeout(() => setSaveMessage(null), 2000)
+  }
+
   const completedTasks = tasks.filter((t) => t.status === 'done').length
   const inProgressTasks = tasks.filter((t) => t.status === 'in_progress').length
   const todoTasks = tasks.filter((t) => t.status === 'todo').length
   const currentCompletion = calculatedCompletion()
+  const currentRiskLevel = storeProject?.riskLevel || project.riskLevel
 
   return (
     <Modal
@@ -251,8 +301,9 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
       {/* Tab Content */}
       {activeTab === 'overview' && (
         <OverviewTab
-          project={{ ...project, completionPercentage: currentCompletion }}
+          project={{ ...project, completionPercentage: currentCompletion, riskLevel: currentRiskLevel }}
           stats={{ completedTasks, inProgressTasks, todoTasks, totalTasks: tasks.length }}
+          onRiskLevelChange={handleRiskLevelChange}
         />
       )}
 
@@ -261,6 +312,8 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
           tasks={tasks}
           onTaskUpdate={handleTaskUpdate}
           onTaskReorder={handleTaskReorder}
+          onTaskAdd={handleTaskAdd}
+          onTaskDelete={handleTaskDelete}
           teamMembers={teamMembers}
         />
       )}
@@ -279,16 +332,29 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
 function OverviewTab({
   project,
   stats,
+  onRiskLevelChange,
 }: {
   project: ProjectDetailModalProps['project']
   stats: { completedTasks: number; inProgressTasks: number; todoTasks: number; totalTasks: number }
+  onRiskLevelChange: (riskLevel: RiskLevel) => void
 }) {
+  const [showRiskDropdown, setShowRiskDropdown] = useState(false)
+
   const riskColors: Record<string, string> = {
     low: 'text-green-400',
     medium: 'text-yellow-400',
     high: 'text-orange-400',
     critical: 'text-red-400',
   }
+
+  const riskBgColors: Record<string, string> = {
+    low: 'bg-green-500/20 hover:bg-green-500/30',
+    medium: 'bg-yellow-500/20 hover:bg-yellow-500/30',
+    high: 'bg-orange-500/20 hover:bg-orange-500/30',
+    critical: 'bg-red-500/20 hover:bg-red-500/30',
+  }
+
+  const riskOptions: RiskLevel[] = ['low', 'medium', 'high', 'critical']
 
   return (
     <div className="space-y-6">
@@ -302,14 +368,41 @@ function OverviewTab({
           <div className="text-2xl font-bold text-white">{project.completionPercentage}%</div>
         </div>
 
-        <div className="bg-slate-700/50 rounded-lg p-4">
+        {/* Editable Risk Level */}
+        <div className="bg-slate-700/50 rounded-lg p-4 relative">
           <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
             <AlertCircle size={16} />
             Risk Level
+            <Edit2 size={12} className="ml-auto opacity-50" />
           </div>
-          <div className={`text-2xl font-bold capitalize ${riskColors[project.riskLevel]}`}>
+          <button
+            onClick={() => setShowRiskDropdown(!showRiskDropdown)}
+            className={`text-2xl font-bold capitalize ${riskColors[project.riskLevel]} flex items-center gap-2 hover:opacity-80 transition-opacity`}
+          >
             {project.riskLevel}
-          </div>
+            <ChevronDown size={18} className={`transition-transform ${showRiskDropdown ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Risk Level Dropdown */}
+          {showRiskDropdown && (
+            <div className="absolute z-50 top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl overflow-hidden">
+              {riskOptions.map((level) => (
+                <button
+                  key={level}
+                  onClick={() => {
+                    onRiskLevelChange(level)
+                    setShowRiskDropdown(false)
+                  }}
+                  className={`w-full px-4 py-2.5 text-left capitalize flex items-center justify-between ${riskBgColors[level]} ${riskColors[level]} transition-colors`}
+                >
+                  {level}
+                  {project.riskLevel === level && (
+                    <CheckCircle2 size={16} />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="bg-slate-700/50 rounded-lg p-4">
@@ -419,6 +512,8 @@ function EditableGantt({
     originalStart: string
     originalEnd: string
   } | null>(null)
+  const [editingDates, setEditingDates] = useState<string | null>(null)
+  const [tempDates, setTempDates] = useState<{ start: string; end: string }>({ start: '', end: '' })
 
   // Generate weeks for header
   const weeks = ['Jan 6', 'Jan 13', 'Jan 20', 'Jan 27', 'Feb 3', 'Feb 10', 'Feb 17', 'Feb 24']
@@ -517,16 +612,33 @@ function EditableGantt({
     todo: 'bg-slate-500',
   }
 
+  const openDateEditor = (task: TaskWithAssignees) => {
+    setEditingDates(task.id)
+    setTempDates({ start: task.startDate, end: task.endDate })
+  }
+
+  const saveDates = (taskId: string) => {
+    if (new Date(tempDates.start) >= new Date(tempDates.end)) {
+      return // Invalid date range
+    }
+    onTaskUpdate(taskId, {
+      startDate: tempDates.start,
+      endDate: tempDates.end,
+    })
+    setEditingDates(null)
+  }
+
   return (
     <div className="overflow-x-auto gantt-container">
       <div className="min-w-[700px]">
         <div className="mb-2 text-xs text-slate-400">
-          Drag task bars to change dates. Drag edges to resize.
+          Drag task bars to change dates. Drag edges to resize. Click the calendar icon to set exact dates.
         </div>
 
         {/* Timeline Header */}
         <div className="flex border-b border-slate-700">
           <div className="w-48 shrink-0 p-3 font-medium text-slate-300 text-sm">Task</div>
+          <div className="w-20 shrink-0 p-3 font-medium text-slate-300 text-sm text-center">Assignees</div>
           <div className="flex-1 flex">
             {weeks.map((week) => (
               <div
@@ -544,8 +656,24 @@ function EditableGantt({
           {tasks.map((task) => {
             const { left, width } = getTaskPosition(task.startDate, task.endDate)
             return (
-              <div key={task.id} className="flex items-center h-10 hover:bg-slate-700/30 transition-colors">
-                <div className="w-48 shrink-0 px-3 text-sm text-white truncate">{task.title}</div>
+              <div key={task.id} className="flex items-center h-12 hover:bg-slate-700/30 transition-colors relative">
+                <div className="w-48 shrink-0 px-3 flex items-center gap-2">
+                  <button
+                    onClick={() => openDateEditor(task)}
+                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-primary-400 transition-colors"
+                    title="Edit dates"
+                  >
+                    <Calendar size={14} />
+                  </button>
+                  <span className="text-sm text-white truncate">{task.title}</span>
+                </div>
+                <div className="w-20 shrink-0 flex items-center justify-center">
+                  {task.assignees.length > 0 ? (
+                    <AvatarGroup names={task.assignees} max={2} size="sm" />
+                  ) : (
+                    <span className="text-slate-500 text-xs">-</span>
+                  )}
+                </div>
                 <div className="flex-1 relative h-full flex items-center px-2">
                   {/* Background grid */}
                   <div className="absolute inset-0 flex">
@@ -556,13 +684,13 @@ function EditableGantt({
 
                   {/* Task bar - draggable */}
                   <div
-                    className={`absolute h-5 rounded ${statusColors[task.status]} opacity-80 cursor-move group transition-all duration-150 hover:opacity-100 hover:shadow-lg`}
-                    style={{ left: `${left}%`, width: `${width}%`, minWidth: '20px' }}
+                    className={`absolute h-6 rounded-full ${statusColors[task.status]} opacity-80 cursor-move group transition-all duration-150 hover:opacity-100 hover:shadow-lg flex items-center justify-center`}
+                    style={{ left: `${left}%`, width: `${width}%`, minWidth: '30px' }}
                     onMouseDown={(e) => handleMouseDown(e, task.id, 'move')}
                   >
                     {/* Left resize handle */}
                     <div
-                      className="absolute left-0 top-0 w-2 h-full cursor-ew-resize bg-white/0 hover:bg-white/30 rounded-l transition-colors"
+                      className="absolute left-0 top-0 w-3 h-full cursor-ew-resize bg-white/0 hover:bg-white/30 rounded-l-full transition-colors"
                       onMouseDown={(e) => {
                         e.stopPropagation()
                         handleMouseDown(e, task.id, 'resize-start')
@@ -572,14 +700,21 @@ function EditableGantt({
                     {/* Progress fill */}
                     {task.progress > 0 && task.progress < 100 && (
                       <div
-                        className="h-full bg-white/20 rounded-l pointer-events-none"
+                        className="absolute left-0 h-full bg-white/20 rounded-l-full pointer-events-none"
                         style={{ width: `${task.progress}%` }}
                       />
                     )}
 
+                    {/* Avatar on the bar */}
+                    {task.assignees.length > 0 && width > 5 && (
+                      <div className="absolute -left-1 -top-1">
+                        <Avatar name={task.assignees[0]} size="sm" />
+                      </div>
+                    )}
+
                     {/* Right resize handle */}
                     <div
-                      className="absolute right-0 top-0 w-2 h-full cursor-ew-resize bg-white/0 hover:bg-white/30 rounded-r transition-colors"
+                      className="absolute right-0 top-0 w-3 h-full cursor-ew-resize bg-white/0 hover:bg-white/30 rounded-r-full transition-colors"
                       onMouseDown={(e) => {
                         e.stopPropagation()
                         handleMouseDown(e, task.id, 'resize-end')
@@ -587,6 +722,55 @@ function EditableGantt({
                     />
                   </div>
                 </div>
+
+                {/* Date Editor Popup */}
+                {editingDates === task.id && (
+                  <div className="absolute z-50 left-12 top-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl p-4 w-72">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-white font-medium text-sm">{task.title}</span>
+                      <button
+                        onClick={() => setEditingDates(null)}
+                        className="p-1 hover:bg-slate-700 rounded text-slate-400"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs text-slate-400 block mb-1">Start Date</label>
+                        <input
+                          type="date"
+                          value={tempDates.start}
+                          onChange={(e) => setTempDates({ ...tempDates, start: e.target.value })}
+                          className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-400 block mb-1">End Date</label>
+                        <input
+                          type="date"
+                          value={tempDates.end}
+                          onChange={(e) => setTempDates({ ...tempDates, end: e.target.value })}
+                          className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
+                        />
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          onClick={() => saveDates(task.id)}
+                          className="flex-1 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white rounded text-sm font-medium transition-colors"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingDates(null)}
+                          className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}

@@ -49,6 +49,7 @@ export default function ProjectsPage() {
     manager: '',
     priority: 'medium' as Priority,
     riskLevel: 'low' as RiskLevel,
+    status: 'active' as ProjectStatus,
     daysUntilDeadline: 30,
   })
 
@@ -170,7 +171,7 @@ export default function ProjectsPage() {
       name: newProject.name.trim(),
       description: newProject.description.trim() || 'No description provided',
       completionPercentage: 0,
-      status: 'active' as ProjectStatus,
+      status: newProject.status,
       riskLevel: newProject.riskLevel,
       daysUntilDeadline: newProject.daysUntilDeadline,
       priority: newProject.priority,
@@ -188,6 +189,7 @@ export default function ProjectsPage() {
       manager: '',
       priority: 'medium',
       riskLevel: 'low',
+      status: 'active',
       daysUntilDeadline: 30,
     })
   }
@@ -522,8 +524,19 @@ export default function ProjectsPage() {
                 </div>
               </div>
 
-              {/* Priority and Risk Row */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Status, Priority and Risk Row */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm text-slate-400 block mb-2">Status</label>
+                  <select
+                    value={newProject.status}
+                    onChange={(e) => setNewProject({ ...newProject, status: e.target.value as ProjectStatus })}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500"
+                  >
+                    <option value="active">Active</option>
+                    <option value="on_hold">On Hold (Upcoming)</option>
+                  </select>
+                </div>
                 <div>
                   <label className="text-sm text-slate-400 block mb-2">Priority</label>
                   <select

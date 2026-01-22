@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
-export type ProjectStatus = 'active' | 'completed' | 'on_hold'
+export type ProjectStatus = 'active' | 'completed' | 'on_hold' | 'planning' | 'cancelled'
 export type Priority = 'low' | 'medium' | 'high' | 'critical'
 
 export interface TaskWithAssignees {
@@ -13,6 +13,7 @@ export interface TaskWithAssignees {
   startDate: string
   endDate: string
   progress: number
+  comment?: string
 }
 
 export interface Project {
@@ -30,6 +31,7 @@ export interface Project {
   completedAt?: string // When project was marked as complete
   isDeleted?: boolean // Soft delete flag
   deletedAt?: string // When project was deleted
+  statusChangeReason?: string // Reason for status change (on_hold, cancelled, deleted)
 }
 
 export interface Milestone {

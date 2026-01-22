@@ -52,6 +52,7 @@ export interface TaskWithAssignees {
   startDate: string
   endDate: string
   progress: number
+  comment?: string
 }
 
 export interface AuditLogEntry {
@@ -75,6 +76,13 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([])
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+
+  // Status change confirmation dialog state
+  const [statusChangeDialog, setStatusChangeDialog] = useState<{
+    isOpen: boolean
+    targetStatus: ProjectStatus | null
+    reason: string
+  }>({ isOpen: false, targetStatus: null, reason: '' })
 
   // Get project from store
   const { projects, updateProjectTasks, updateProject } = useProjectStore()
@@ -247,21 +255,49 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
     setTimeout(() => setSaveMessage(null), 2000)
   }
 
+  // Statuses that require a mandatory reason
+  const statusesRequiringReason: ProjectStatus[] = ['on_hold', 'cancelled']
+
   const handleStatusChange = (newStatus: ProjectStatus) => {
     const oldStatus = storeProject?.status
     if (oldStatus === newStatus) return
 
-    updateProject(project.id, { status: newStatus })
+    // Check if we're moving FROM active TO a status that requires reason
+    if (oldStatus === 'active' && statusesRequiringReason.includes(newStatus)) {
+      setStatusChangeDialog({ isOpen: true, targetStatus: newStatus, reason: '' })
+      return
+    }
+
+    // Direct status change for other transitions
+    performStatusChange(newStatus)
+  }
+
+  const performStatusChange = (newStatus: ProjectStatus, reason?: string) => {
+    const oldStatus = storeProject?.status
+
+    const updates: Partial<typeof storeProject> = { status: newStatus }
+    if (reason) {
+      updates.statusChangeReason = reason
+    }
+
+    updateProject(project.id, updates)
     addAuditLog(
       'STATUS_CHANGE',
       project.name,
       { status: oldStatus },
-      { status: newStatus },
+      { status: newStatus, reason },
       ['status'],
       'projects'
     )
     setSaveMessage('Status updated!')
     setTimeout(() => setSaveMessage(null), 2000)
+  }
+
+  const handleStatusChangeConfirm = () => {
+    if (!statusChangeDialog.targetStatus || !statusChangeDialog.reason.trim()) return
+
+    performStatusChange(statusChangeDialog.targetStatus, statusChangeDialog.reason)
+    setStatusChangeDialog({ isOpen: false, targetStatus: null, reason: '' })
   }
 
   const completedTasks = tasks.filter((t) => t.status === 'done').length
@@ -332,6 +368,69 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
       {activeTab === 'audit' && (
         <AuditTrail projectId={project.id} externalLogs={auditLogs} />
       )}
+
+      {/* Status Change Confirmation Dialog */}
+      {statusChangeDialog.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setStatusChangeDialog({ isOpen: false, targetStatus: null, reason: '' })}
+          />
+          <div className="relative bg-slate-800/95 backdrop-blur-xl border border-slate-600/50 rounded-xl shadow-2xl p-6 w-full max-w-md animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                statusChangeDialog.targetStatus === 'cancelled' ? 'bg-red-500/20' : 'bg-amber-500/20'
+              }`}>
+                {statusChangeDialog.targetStatus === 'cancelled' ? (
+                  <X size={20} className="text-red-400" />
+                ) : (
+                  <Clock size={20} className="text-amber-400" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">
+                  {statusChangeDialog.targetStatus === 'cancelled' ? 'Cancel Project' : 'Put Project On Hold'}
+                </h3>
+                <p className="text-sm text-slate-400">Please provide a reason for this change</p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="text-sm text-slate-400 block mb-2">
+                Reason <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                value={statusChangeDialog.reason}
+                onChange={(e) => setStatusChangeDialog({ ...statusChangeDialog, reason: e.target.value })}
+                placeholder={`Why is this project being ${statusChangeDialog.targetStatus === 'cancelled' ? 'cancelled' : 'put on hold'}?`}
+                rows={3}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors resize-none"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setStatusChangeDialog({ isOpen: false, targetStatus: null, reason: '' })}
+                className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleStatusChangeConfirm}
+                disabled={!statusChangeDialog.reason.trim()}
+                className={`flex-1 px-4 py-2.5 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  statusChangeDialog.targetStatus === 'cancelled'
+                    ? 'bg-red-500 hover:bg-red-600'
+                    : 'bg-amber-500 hover:bg-amber-600'
+                }`}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Modal>
   )
 }
@@ -367,23 +466,29 @@ function OverviewTab({
   const statusColors: Record<string, string> = {
     active: 'text-green-400',
     completed: 'text-emerald-400',
-    on_hold: 'text-yellow-400',
+    on_hold: 'text-amber-400',
+    planning: 'text-blue-400',
+    cancelled: 'text-slate-400',
   }
 
   const statusBgColors: Record<string, string> = {
     active: 'bg-green-500/20 hover:bg-green-500/30',
     completed: 'bg-emerald-500/20 hover:bg-emerald-500/30',
-    on_hold: 'bg-yellow-500/20 hover:bg-yellow-500/30',
+    on_hold: 'bg-amber-500/20 hover:bg-amber-500/30',
+    planning: 'bg-blue-500/20 hover:bg-blue-500/30',
+    cancelled: 'bg-slate-500/20 hover:bg-slate-500/30',
   }
 
   const statusLabels: Record<string, string> = {
     active: 'Active',
     completed: 'Completed',
     on_hold: 'On Hold',
+    planning: 'Planning',
+    cancelled: 'Cancelled',
   }
 
   const riskOptions: RiskLevel[] = ['low', 'medium', 'high', 'critical']
-  const statusOptions: ProjectStatus[] = ['active', 'on_hold', 'completed']
+  const statusOptions: ProjectStatus[] = ['active', 'planning', 'on_hold', 'completed', 'cancelled']
 
   return (
     <div className="space-y-6">

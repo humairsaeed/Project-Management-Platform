@@ -17,11 +17,15 @@ import {
   RotateCcw,
   MoveRight,
   Archive,
+  PauseCircle,
+  XCircle,
+  FileEdit,
 } from 'lucide-react'
 import { useProjectStore, type Project, type RiskLevel, type Priority, type ProjectStatus } from '../store/projectSlice'
 import ProjectDetailModal from '../components/projects/ProjectDetailModal'
+import Avatar from '../components/common/Avatar'
 
-type TabType = 'active' | 'completed' | 'upcoming' | 'deleted'
+type TabType = 'active' | 'completed' | 'upcoming' | 'on_hold' | 'cancelled' | 'deleted'
 type SortType = 'custom' | 'date_asc' | 'date_desc' | 'name_asc' | 'name_desc'
 
 const teamOptions = ['Security', 'Cloud Services', 'IT Infrastructure', 'DevOps', 'Engineering']
@@ -33,6 +37,7 @@ export default function ProjectsPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [showNewProjectModal, setShowNewProjectModal] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [deleteReason, setDeleteReason] = useState('')
   const [permanentDeleteId, setPermanentDeleteId] = useState<string | null>(null)
   const [sortType, setSortType] = useState<SortType>('custom')
 
@@ -143,8 +148,19 @@ export default function ProjectsPage() {
     [sortedProjects]
   )
 
+  // Upcoming includes both on_hold and planning statuses
   const upcomingProjects = useMemo(
+    () => sortedProjects.filter((p) => p.status === 'on_hold' || p.status === 'planning'),
+    [sortedProjects]
+  )
+
+  const onHoldProjects = useMemo(
     () => sortedProjects.filter((p) => p.status === 'on_hold'),
+    [sortedProjects]
+  )
+
+  const cancelledProjects = useMemo(
+    () => sortedProjects.filter((p) => p.status === 'cancelled'),
     [sortedProjects]
   )
 
@@ -157,6 +173,10 @@ export default function ProjectsPage() {
         return completedProjects
       case 'upcoming':
         return upcomingProjects
+      case 'on_hold':
+        return onHoldProjects
+      case 'cancelled':
+        return cancelledProjects
       case 'deleted':
         return deletedProjects
       default:
@@ -169,10 +189,12 @@ export default function ProjectsPage() {
   const selectedProject = selectedProjectId ? projects.find((p) => p.id === selectedProjectId) : null
 
   const tabs = [
-    { id: 'active' as TabType, label: 'Active Projects', icon: FolderOpen, count: activeProjects.length },
-    { id: 'completed' as TabType, label: 'Completed Projects', icon: CheckCircle2, count: completedProjects.length },
-    { id: 'upcoming' as TabType, label: 'Upcoming Projects', icon: Clock, count: upcomingProjects.length },
-    { id: 'deleted' as TabType, label: 'Deleted Projects', icon: Archive, count: deletedProjects.length },
+    { id: 'active' as TabType, label: 'Active', icon: FolderOpen, count: activeProjects.length },
+    { id: 'completed' as TabType, label: 'Completed', icon: CheckCircle2, count: completedProjects.length },
+    { id: 'upcoming' as TabType, label: 'Upcoming', icon: FileEdit, count: upcomingProjects.length },
+    { id: 'on_hold' as TabType, label: 'On Hold', icon: PauseCircle, count: onHoldProjects.length },
+    { id: 'cancelled' as TabType, label: 'Cancelled', icon: XCircle, count: cancelledProjects.length },
+    { id: 'deleted' as TabType, label: 'Deleted', icon: Archive, count: deletedProjects.length },
   ]
 
   const formatDeadline = (daysUntilDeadline: number) => {
@@ -226,9 +248,12 @@ export default function ProjectsPage() {
     })
   }
 
-  const handleSoftDelete = (projectId: string) => {
+  const handleSoftDelete = (projectId: string, reason: string) => {
+    const { updateProject } = useProjectStore.getState()
+    updateProject(projectId, { statusChangeReason: reason })
     softDeleteProject(projectId)
     setDeleteConfirmId(null)
+    setDeleteReason('')
   }
 
   const handleRestore = (projectId: string) => {
@@ -340,7 +365,9 @@ export default function ProjectsPage() {
           const tabColors: Record<TabType, { bg: string; badge: string }> = {
             active: { bg: 'bg-green-500', badge: 'bg-green-600' },
             completed: { bg: 'bg-emerald-500', badge: 'bg-emerald-600' },
-            upcoming: { bg: 'bg-amber-500', badge: 'bg-amber-600' },
+            upcoming: { bg: 'bg-blue-500', badge: 'bg-blue-600' },
+            on_hold: { bg: 'bg-amber-500', badge: 'bg-amber-600' },
+            cancelled: { bg: 'bg-slate-500', badge: 'bg-slate-600' },
             deleted: { bg: 'bg-red-500/80', badge: 'bg-red-600' },
           }
 
@@ -610,7 +637,8 @@ export default function ProjectsPage() {
                     className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500"
                   >
                     <option value="active">Active</option>
-                    <option value="on_hold">On Hold (Upcoming)</option>
+                    <option value="planning">Planning (Upcoming)</option>
+                    <option value="on_hold">On Hold</option>
                   </select>
                 </div>
                 <div>
@@ -686,11 +714,14 @@ export default function ProjectsPage() {
       {deleteConfirmId && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center animate-in fade-in duration-150"
-          onClick={() => setDeleteConfirmId(null)}
+          onClick={() => {
+            setDeleteConfirmId(null)
+            setDeleteReason('')
+          }}
         >
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
           <div
-            className="relative bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-6 w-80 max-w-[90vw] animate-in zoom-in-95 duration-200"
+            className="relative bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-6 w-96 max-w-[90vw] animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex flex-col items-center text-center">
@@ -698,23 +729,40 @@ export default function ProjectsPage() {
                 <Archive size={24} className="text-yellow-400" />
               </div>
               <h3 className="text-lg font-semibold text-white mb-2">Move to Deleted</h3>
-              <p className="text-slate-400 text-sm mb-6">
+              <p className="text-slate-400 text-sm mb-4">
                 Are you sure you want to delete{' '}
                 <span className="text-white font-medium">
                   "{projects.find((p) => p.id === deleteConfirmId)?.name}"
                 </span>
                 ? You can restore it later from the Deleted Projects tab.
               </p>
+              <div className="w-full mb-4 text-left">
+                <label className="text-sm text-slate-400 block mb-2">
+                  Reason for deletion <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="Why is this project being deleted?"
+                  rows={2}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors resize-none"
+                  autoFocus
+                />
+              </div>
               <div className="flex items-center gap-3 w-full">
                 <button
-                  onClick={() => setDeleteConfirmId(null)}
+                  onClick={() => {
+                    setDeleteConfirmId(null)
+                    setDeleteReason('')
+                  }}
                   className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleSoftDelete(deleteConfirmId)}
-                  className="flex-1 px-4 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium transition-colors"
+                  onClick={() => handleSoftDelete(deleteConfirmId, deleteReason)}
+                  disabled={!deleteReason.trim()}
+                  className="flex-1 px-4 py-2.5 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   Delete
                 </button>
@@ -981,7 +1029,10 @@ function ProjectCard({
 
         {/* Assigned To & Team */}
         <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-center justify-between text-xs text-slate-500">
-          <span>Assigned to: {project.manager}</span>
+          <div className="flex items-center gap-2">
+            <Avatar name={project.manager} size="sm" />
+            <span className="text-slate-400">{project.manager}</span>
+          </div>
           <span>{project.team}</span>
         </div>
       </div>

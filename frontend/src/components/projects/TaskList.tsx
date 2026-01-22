@@ -14,6 +14,7 @@ import {
   Trash2,
   Search,
   AlertTriangle,
+  MessageSquare,
 } from 'lucide-react'
 import type { TaskWithAssignees } from './ProjectDetailModal'
 import Avatar, { AvatarGroup } from '../common/Avatar'
@@ -53,6 +54,7 @@ export default function TaskList({
   const [newTaskEndDate, setNewTaskEndDate] = useState('')
   const [showNewTaskAssigneeDropdown, setShowNewTaskAssigneeDropdown] = useState(false)
   const [newTaskAssigneeSearch, setNewTaskAssigneeSearch] = useState('')
+  const [newTaskComment, setNewTaskComment] = useState('')
 
   // Initialize dates when form opens
   const initializeNewTaskForm = () => {
@@ -64,6 +66,7 @@ export default function TaskList({
     setNewTaskAssignees([])
     setNewTaskStartDate(today.toISOString().split('T')[0])
     setNewTaskEndDate(nextWeek.toISOString().split('T')[0])
+    setNewTaskComment('')
     setShowAddForm(true)
   }
 
@@ -157,12 +160,14 @@ export default function TaskList({
       startDate: newTaskStartDate,
       endDate: newTaskEndDate,
       progress,
+      comment: newTaskComment.trim() || undefined,
     }
 
     onTaskAdd(newTask)
     setNewTaskTitle('')
     setNewTaskStatus('todo')
     setNewTaskAssignees([])
+    setNewTaskComment('')
     setShowAddForm(false)
     setShowNewTaskAssigneeDropdown(false)
     setNewTaskAssigneeSearch('')
@@ -385,12 +390,28 @@ export default function TaskList({
                   )}
                 </div>
 
+                {/* Comment Field */}
+                <div>
+                  <label className="text-sm text-slate-400 block mb-2">
+                    <MessageSquare size={14} className="inline mr-1" />
+                    Comment (optional)
+                  </label>
+                  <textarea
+                    value={newTaskComment}
+                    onChange={(e) => setNewTaskComment(e.target.value)}
+                    placeholder="Add a comment or note about this task..."
+                    rows={2}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors resize-none"
+                  />
+                </div>
+
                 {/* Action Buttons */}
                 <div className="flex items-center justify-end gap-3 pt-2">
                   <button
                     onClick={() => {
                       setShowAddForm(false)
                       setNewTaskTitle('')
+                      setNewTaskComment('')
                       setShowNewTaskAssigneeDropdown(false)
                     }}
                     className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
@@ -488,6 +509,7 @@ function TaskRow({
       status: editedTask.status,
       assignees: editedTask.assignees,
       progress: editedTask.progress,
+      comment: editedTask.comment,
     })
     setShowAssigneeDropdown(false)
   }
@@ -842,6 +864,22 @@ function TaskRow({
                   </div>
                 )}
               </div>
+
+              {/* Comment Field */}
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">
+                  <MessageSquare size={14} className="inline mr-1" />
+                  Comment
+                </label>
+                <textarea
+                  value={editedTask.comment || ''}
+                  onChange={(e) => setEditedTask({ ...editedTask, comment: e.target.value })}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Add a comment or note..."
+                  rows={2}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors resize-none"
+                />
+              </div>
             </div>
           ) : (
             <>
@@ -900,6 +938,17 @@ function TaskRow({
                   />
                 </div>
               </div>
+
+              {/* Comment Display */}
+              {task.comment && (
+                <div className="mt-4 p-3 bg-slate-700/50 rounded-lg">
+                  <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
+                    <MessageSquare size={14} />
+                    <span>Comment</span>
+                  </div>
+                  <p className="text-white text-sm">{task.comment}</p>
+                </div>
+              )}
             </>
           )}
         </div>

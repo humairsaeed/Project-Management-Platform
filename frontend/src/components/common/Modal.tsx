@@ -52,14 +52,14 @@ export default function Modal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onClick={onClose}
       />
 
       {/* Modal */}
       <div
         ref={modalRef}
-        className={`relative bg-slate-800 rounded-xl border border-slate-700 shadow-2xl w-full ${sizeClasses[size]} max-h-[90vh] flex flex-col`}
+        className={`relative bg-slate-800/90 backdrop-blur-xl rounded-xl border border-slate-600/50 shadow-2xl w-full ${sizeClasses[size]} max-h-[90vh] flex flex-col`}
       >
         {/* Header */}
         <div className="flex items-start justify-between p-6 border-b border-slate-700">

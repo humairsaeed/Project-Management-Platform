@@ -24,8 +24,6 @@ import {
   PieChart as RechartsPie,
   Pie,
   Cell,
-  LineChart,
-  Line,
   Legend,
   AreaChart,
   Area,

@@ -74,11 +74,10 @@ export default function Header() {
       })),
   ].slice(0, 5)
 
-  const handleSearchSelect = (projectId: string) => {
+  const handleSearchSelect = () => {
     setSearchTerm('')
     setShowSearchResults(false)
     navigate('/projects')
-    // Could also open the project detail modal here
   }
 
   const getStatusIcon = (status: string) => {

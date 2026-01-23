@@ -76,6 +76,7 @@ export default function TeamPage() {
       teams: newUser.teams,
       status: 'active',
       lastActive: 'Just now',
+      loginHistory: [],
     }
 
     addUser(user)

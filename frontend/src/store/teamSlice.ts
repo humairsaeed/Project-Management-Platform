@@ -256,8 +256,11 @@ export const useTeamStore = create<TeamState>()(
         })),
 
       recordLogin: (userId) =>
-        set((state) => ({
-          users: state.users.map((user) =>
+        set((state) => {
+          console.log('Recording login for userId:', userId)
+          console.log('Total users before update:', state.users.length)
+
+          const updatedUsers = state.users.map((user) =>
             user.id === userId
               ? {
                   ...user,
@@ -271,8 +274,14 @@ export const useTeamStore = create<TeamState>()(
                   ].slice(-50), // Keep last 50 login events
                 }
               : user
-          ),
-        })),
+          )
+
+          console.log('Total users after update:', updatedUsers.length)
+          const updatedUser = updatedUsers.find((u) => u.id === userId)
+          console.log('Updated user:', updatedUser ? `${updatedUser.firstName} ${updatedUser.lastName}` : 'not found')
+
+          return { users: updatedUsers }
+        }),
 
       // Team actions
       addTeam: (team) =>

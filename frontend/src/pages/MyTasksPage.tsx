@@ -5,9 +5,11 @@ import {
   Clock,
   Calendar,
   AlertTriangle,
+  Edit2,
 } from 'lucide-react'
 import { useProjectStore } from '../store/projectSlice'
 import { useAuthStore } from '../store/authSlice'
+import ProjectDetailModal from '../components/projects/ProjectDetailModal'
 
 type FilterType = 'all' | 'my_tasks' | 'overdue'
 type SortType = 'priority' | 'due_date' | 'status'
@@ -15,6 +17,7 @@ type SortType = 'priority' | 'due_date' | 'status'
 export default function MyTasksPage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>('my_tasks')
   const [sortBy, setSortBy] = useState<SortType>('due_date')
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const { projects } = useProjectStore()
   const { user } = useAuthStore()
 
@@ -248,9 +251,10 @@ export default function MyTasksPage() {
             return (
               <div
                 key={`${item.projectId}-${item.task.id}`}
-                className={`p-4 bg-slate-800/50 border rounded-lg hover:border-slate-600 transition-colors ${
+                className={`p-4 bg-slate-800/50 border rounded-lg hover:border-primary-500/30 transition-all cursor-pointer group ${
                   overdue ? 'border-red-500/30' : 'border-slate-700'
                 }`}
+                onClick={() => setSelectedProjectId(item.projectId)}
               >
                 <div className="flex items-start gap-4">
                   <div className="mt-1">{getStatusIcon(item.task.status)}</div>
@@ -258,7 +262,10 @@ export default function MyTasksPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-4 mb-2">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-white font-medium mb-1">{item.task.title}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-white font-medium mb-1">{item.task.title}</h3>
+                          <Edit2 size={14} className="text-slate-500 group-hover:text-primary-400 transition-colors" />
+                        </div>
                         <div className="flex items-center gap-2 text-sm text-slate-400">
                           <span className="truncate">{item.projectName}</span>
                         </div>
@@ -315,6 +322,19 @@ export default function MyTasksPage() {
           })
         )}
       </div>
+
+      {/* Project Detail Modal */}
+      {selectedProjectId && (() => {
+        const selectedProject = projects.find(p => p.id === selectedProjectId)
+        if (!selectedProject) return null
+
+        return (
+          <ProjectDetailModal
+            project={selectedProject}
+            onClose={() => setSelectedProjectId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

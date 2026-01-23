@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, ExternalLink } from 'lucide-react'
+import { ArrowRight, ExternalLink, Clock, XCircle, User } from 'lucide-react'
 
 interface ProjectCardProject {
   id: string
@@ -12,6 +12,9 @@ interface ProjectCardProject {
   priority: string
   manager?: string
   team?: string
+  statusChangeReason?: string
+  statusChangedBy?: string
+  statusChangedAt?: string
 }
 
 interface ProjectCardProps {
@@ -71,6 +74,41 @@ export default function ProjectCard({ project, onClick }: ProjectCardProps) {
               <span>{project.daysUntilDeadline} days left</span>
             )}
           </div>
+
+          {/* Status Change Reason - Display for specific statuses */}
+          {project.statusChangeReason &&
+           (project.status === 'on_hold' || project.status === 'cancelled') && (
+            <div className="mt-3 p-3 bg-slate-700/50 border-l-2 border-amber-500 rounded">
+              <div className="flex items-start gap-2">
+                <div className="mt-0.5">
+                  {project.status === 'on_hold' ? (
+                    <Clock size={16} className="text-amber-400" />
+                  ) : (
+                    <XCircle size={16} className="text-red-400" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-slate-300 mb-1">
+                    {project.status === 'on_hold' ? 'On Hold' : 'Cancelled'}
+                  </div>
+                  <p className="text-xs text-slate-400 break-words">
+                    {project.statusChangeReason}
+                  </p>
+                  {project.statusChangedBy && (
+                    <div className="flex items-center gap-1 mt-2 text-xs text-slate-500">
+                      <User size={12} />
+                      <span>{project.statusChangedBy}</span>
+                      {project.statusChangedAt && (
+                        <span className="ml-1">
+                          • {new Date(project.statusChangedAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-2">

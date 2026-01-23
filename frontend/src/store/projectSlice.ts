@@ -58,6 +58,9 @@ export interface Project {
   isDeleted?: boolean // Soft delete flag
   deletedAt?: string // When project was deleted
   statusChangeReason?: string // Reason for status change (on_hold, cancelled, deleted)
+  statusChangedBy?: string // User name who changed the status
+  statusChangedById?: string // User ID who changed the status
+  statusChangedAt?: string // When the status was changed
 }
 
 export interface Milestone {

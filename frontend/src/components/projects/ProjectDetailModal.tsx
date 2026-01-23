@@ -19,6 +19,7 @@ import TaskList from './TaskList'
 import AuditTrail from '../common/AuditTrail'
 import Avatar, { AvatarGroup } from '../common/Avatar'
 import { useProjectStore, type TaskWithAssignees as StoreTaskWithAssignees, type RiskLevel, type ProjectStatus, type AuditLogEntry } from '../../store/projectSlice'
+import { useAuthStore } from '../../store/authSlice'
 
 interface ProjectDetailModalProps {
   project: {
@@ -87,6 +88,9 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
   const { projects, updateProjectTasks, updateProject, addAuditLog: storeAddAuditLog, getProjectAuditLogs } = useProjectStore()
   const storeProject = projects.find((p) => p.id === project.id)
   const auditLogs = getProjectAuditLogs(project.id)
+
+  // Get current user
+  const { user } = useAuthStore()
 
   // Local tasks state initialized from store
   const [tasks, setTasks] = useState<TaskWithAssignees[]>(
@@ -278,6 +282,12 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
     const updates: Partial<typeof storeProject> = { status: newStatus }
     if (reason) {
       updates.statusChangeReason = reason
+      // Capture who made the change
+      if (user) {
+        updates.statusChangedBy = `${user.firstName} ${user.lastName}`
+        updates.statusChangedById = user.id
+        updates.statusChangedAt = new Date().toISOString()
+      }
     }
 
     updateProject(project.id, updates)
@@ -348,6 +358,15 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
           onRiskLevelChange={handleRiskLevelChange}
           onStatusChange={handleStatusChange}
           onDelete={onDelete ? (reason: string) => {
+            // Capture who deleted the project
+            if (user) {
+              updateProject(project.id, {
+                statusChangeReason: reason,
+                statusChangedBy: `${user.firstName} ${user.lastName}`,
+                statusChangedById: user.id,
+                statusChangedAt: new Date().toISOString(),
+              })
+            }
             onDelete(project.id, reason)
             onClose()
           } : undefined}

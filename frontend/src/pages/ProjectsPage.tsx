@@ -22,6 +22,7 @@ import {
   FileEdit,
   LayoutGrid,
   List,
+  User,
 } from 'lucide-react'
 import { useProjectStore, type Project, type RiskLevel, type Priority, type ProjectStatus } from '../store/projectSlice'
 import ProjectDetailModal from '../components/projects/ProjectDetailModal'
@@ -943,8 +944,38 @@ function ProjectCard({
         </div>
 
         {/* Deleted info */}
-        <div className="text-xs text-red-400 mb-4">
-          Deleted {formatCompletedDate(project.deletedAt)}
+        <div className="mb-4">
+          <div className="text-xs text-red-400 mb-2">
+            Deleted {formatCompletedDate(project.deletedAt)}
+          </div>
+
+          {/* Deletion Reason */}
+          {project.statusChangeReason && (
+            <div className="p-3 bg-red-500/10 border-l-2 border-red-500 rounded">
+              <div className="flex items-start gap-2">
+                <XCircle size={14} className="text-red-400 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-red-400 mb-1">
+                    Reason for Deletion
+                  </div>
+                  <p className="text-xs text-slate-400 break-words">
+                    {project.statusChangeReason}
+                  </p>
+                  {project.statusChangedBy && (
+                    <div className="flex items-center gap-1 mt-2 text-xs text-slate-500">
+                      <User size={10} />
+                      <span>{project.statusChangedBy}</span>
+                      {project.statusChangedAt && (
+                        <span className="ml-1">
+                          • {new Date(project.statusChangedAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -1070,6 +1101,41 @@ function ProjectCard({
           </div>
         </div>
 
+        {/* Status Change Reason - Display for specific statuses */}
+        {project.statusChangeReason &&
+         (project.status === 'on_hold' || project.status === 'cancelled') && (
+          <div className="mb-4 p-3 bg-slate-700/50 border-l-2 border-amber-500 rounded">
+            <div className="flex items-start gap-2">
+              <div className="mt-0.5">
+                {project.status === 'on_hold' ? (
+                  <Clock size={14} className="text-amber-400" />
+                ) : (
+                  <XCircle size={14} className="text-red-400" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-slate-300 mb-1">
+                  {project.status === 'on_hold' ? 'Reason for Hold' : 'Reason for Cancellation'}
+                </div>
+                <p className="text-xs text-slate-400 break-words">
+                  {project.statusChangeReason}
+                </p>
+                {project.statusChangedBy && (
+                  <div className="flex items-center gap-1 mt-2 text-xs text-slate-500">
+                    <User size={10} />
+                    <span>{project.statusChangedBy}</span>
+                    {project.statusChangedAt && (
+                      <span className="ml-1">
+                        • {new Date(project.statusChangedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-1.5 text-slate-400">
@@ -1157,15 +1223,16 @@ function ProjectListItem({
 
   if (isDeletedTab) {
     return (
-      <div className="bg-slate-800/50 border border-red-500/20 rounded-lg p-4 flex items-center gap-4">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-slate-400 font-medium truncate">{project.name}</h3>
-          <p className="text-slate-500 text-sm truncate">{project.description}</p>
-        </div>
-        <div className="text-xs text-red-400 whitespace-nowrap">
-          Deleted {formatCompletedDate(project.deletedAt)}
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="bg-slate-800/50 border border-red-500/20 rounded-lg p-4">
+        <div className="flex items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-slate-400 font-medium truncate">{project.name}</h3>
+            <p className="text-slate-500 text-sm truncate">{project.description}</p>
+          </div>
+          <div className="text-xs text-red-400 whitespace-nowrap">
+            Deleted {formatCompletedDate(project.deletedAt)}
+          </div>
+          <div className="flex items-center gap-2">
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -1187,6 +1254,35 @@ function ProjectListItem({
             Delete
           </button>
         </div>
+        </div>
+
+        {/* Deletion Reason */}
+        {project.statusChangeReason && (
+          <div className="mt-3 p-3 bg-red-500/10 border-l-2 border-red-500 rounded">
+            <div className="flex items-start gap-2">
+              <XCircle size={14} className="text-red-400 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-red-400 mb-1">
+                  Reason for Deletion
+                </div>
+                <p className="text-xs text-slate-400 break-words">
+                  {project.statusChangeReason}
+                </p>
+                {project.statusChangedBy && (
+                  <div className="flex items-center gap-1 mt-2 text-xs text-slate-500">
+                    <User size={10} />
+                    <span>{project.statusChangedBy}</span>
+                    {project.statusChangedAt && (
+                      <span className="ml-1">
+                        • {new Date(project.statusChangedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -1234,6 +1330,38 @@ function ProjectListItem({
 
           {/* Description - allow multiple lines */}
           <p className="text-slate-500 text-sm mt-1 line-clamp-2">{project.description}</p>
+
+          {/* Status Change Reason - Display for specific statuses */}
+          {project.statusChangeReason &&
+           (project.status === 'on_hold' || project.status === 'cancelled') && (
+            <div className="mt-2 p-2 bg-slate-700/50 border-l-2 border-amber-500 rounded">
+              <div className="flex items-start gap-2">
+                <div className="mt-0.5">
+                  {project.status === 'on_hold' ? (
+                    <Clock size={12} className="text-amber-400" />
+                  ) : (
+                    <XCircle size={12} className="text-red-400" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-slate-400 break-words">
+                    {project.statusChangeReason}
+                  </p>
+                  {project.statusChangedBy && (
+                    <div className="flex items-center gap-1 mt-1 text-xs text-slate-500">
+                      <User size={10} />
+                      <span>{project.statusChangedBy}</span>
+                      {project.statusChangedAt && (
+                        <span className="ml-1">
+                          • {new Date(project.statusChangedAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Bottom row with meta info */}
           <div className="flex items-center gap-4 mt-2 text-xs text-slate-500 flex-wrap">

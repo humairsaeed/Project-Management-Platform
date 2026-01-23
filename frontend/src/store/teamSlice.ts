@@ -250,7 +250,7 @@ export const useTeamStore = create<TeamState>()(
     }),
     {
       name: 'team-storage',
-      version: 2,
+      version: 3,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState as TeamState
 
@@ -299,6 +299,37 @@ export const useTeamStore = create<TeamState>()(
           state = {
             ...state,
             roles: updatedRoles,
+          }
+        }
+
+        // Migration from version 2 to 3: PRODUCTION RESET
+        // Reset to clean slate with only admin user
+        if (version <= 2) {
+          console.log('Migrating to production version 3: Resetting to clean state')
+
+          // Keep only the admin user, or create if doesn't exist
+          const adminUser = state.users.find((u) => u.email === 'admin@company.com')
+
+          state = {
+            ...state,
+            users: adminUser
+              ? [
+                  {
+                    ...adminUser,
+                    id: 'admin-001',
+                    firstName: 'System',
+                    lastName: 'Administrator',
+                    password: 'Admin@123',
+                    roles: ['admin'],
+                    teams: [],
+                    status: 'active',
+                    lastActive: adminUser.lastActive || 'Never',
+                    loginHistory: adminUser.loginHistory || [],
+                  },
+                ]
+              : defaultUsers,
+            teams: defaultTeams,
+            roles: defaultRoles,
           }
         }
 

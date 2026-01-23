@@ -322,10 +322,26 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: 'project-storage',
+      version: 1,
       partialize: (state) => ({
         projects: state.projects,
         milestones: state.milestones,
       }),
+      migrate: (persistedState: any, version: number) => {
+        let state = persistedState as Pick<ProjectState, 'projects' | 'milestones'>
+
+        // Migration to version 1: PRODUCTION RESET
+        // Clear all demo projects and milestones
+        if (version === 0) {
+          console.log('Migrating projects to production version 1: Clearing demo data')
+          state = {
+            projects: initialProjects,
+            milestones: initialMilestones,
+          }
+        }
+
+        return state
+      },
     }
   )
 )

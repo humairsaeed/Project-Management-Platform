@@ -15,9 +15,11 @@ import {
   Search,
   AlertTriangle,
   MessageSquare,
+  Send,
 } from 'lucide-react'
-import type { TaskWithAssignees } from './ProjectDetailModal'
+import type { TaskWithAssignees, TaskComment } from './ProjectDetailModal'
 import Avatar, { AvatarGroup } from '../common/Avatar'
+import { useAuthStore } from '../../store/authSlice'
 
 interface TeamMember {
   id: string
@@ -160,10 +162,25 @@ export default function TaskList({
   const handleAddTask = () => {
     if (!newTaskTitle.trim() || !onTaskAdd) return
 
+    const { user } = useAuthStore.getState()
+
     // Calculate progress based on status
     let progress = 0
     if (newTaskStatus === 'done') progress = 100
     else if (newTaskStatus === 'in_progress') progress = 50
+
+    // Convert initial comment to new format
+    const comments: TaskComment[] = []
+    if (newTaskComment.trim() && user) {
+      comments.push({
+        id: `comment-${Date.now()}`,
+        userId: user.id,
+        userName: `${user.firstName} ${user.lastName}`,
+        userEmail: user.email,
+        content: newTaskComment.trim(),
+        createdAt: new Date().toISOString(),
+      })
+    }
 
     const newTask: TaskWithAssignees = {
       id: `t${Date.now()}`,
@@ -173,7 +190,7 @@ export default function TaskList({
       startDate: newTaskStartDate,
       endDate: newTaskEndDate,
       progress,
-      comment: newTaskComment.trim() || undefined,
+      comments: comments.length > 0 ? comments : undefined,
     }
 
     onTaskAdd(newTask)
@@ -499,7 +516,9 @@ function TaskRow({
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [assigneeSearch, setAssigneeSearch] = useState('')
+  const [newComment, setNewComment] = useState('')
   const assigneeDropdownRef = useRef<HTMLDivElement>(null)
+  const { user, hasRole } = useAuthStore()
 
   useEffect(() => {
     setEditedTask(task)
@@ -535,7 +554,6 @@ function TaskRow({
       status: editedTask.status,
       assignees: editedTask.assignees,
       progress: editedTask.progress,
-      comment: editedTask.comment,
     })
     setShowAssigneeDropdown(false)
   }
@@ -565,6 +583,28 @@ function TaskRow({
     } else {
       setEditedTask({ ...editedTask, assignees: [...current, name] })
     }
+  }
+
+  const handleAddComment = () => {
+    if (!newComment.trim() || !user) return
+
+    const comment: TaskComment = {
+      id: `comment-${Date.now()}`,
+      userId: user.id,
+      userName: `${user.firstName} ${user.lastName}`,
+      userEmail: user.email,
+      content: newComment.trim(),
+      createdAt: new Date().toISOString(),
+    }
+
+    const updatedComments = [...(task.comments || []), comment]
+    onSave({ comments: updatedComments })
+    setNewComment('')
+  }
+
+  const handleDeleteComment = (commentId: string) => {
+    const updatedComments = (task.comments || []).filter((c) => c.id !== commentId)
+    onSave({ comments: updatedComments })
   }
 
   // Handle row click - toggle expand
@@ -890,22 +930,6 @@ function TaskRow({
                   </div>
                 )}
               </div>
-
-              {/* Comment Field */}
-              <div>
-                <label className="text-sm text-slate-400 block mb-2">
-                  <MessageSquare size={14} className="inline mr-1" />
-                  Comment
-                </label>
-                <textarea
-                  value={editedTask.comment || ''}
-                  onChange={(e) => setEditedTask({ ...editedTask, comment: e.target.value })}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder="Add a comment or note..."
-                  rows={2}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors resize-none"
-                />
-              </div>
             </div>
           ) : (
             <>
@@ -965,16 +989,78 @@ function TaskRow({
                 </div>
               </div>
 
-              {/* Comment Display */}
-              {task.comment && (
-                <div className="mt-4 p-3 bg-slate-700/50 rounded-lg">
-                  <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
-                    <MessageSquare size={14} />
-                    <span>Comment</span>
-                  </div>
-                  <p className="text-white text-sm">{task.comment}</p>
+              {/* Comments Section */}
+              <div className="mt-4">
+                <div className="flex items-center gap-2 text-slate-400 text-sm mb-3">
+                  <MessageSquare size={14} />
+                  <span>Comments ({(task.comments || []).length})</span>
                 </div>
-              )}
+
+                {/* Display existing comments */}
+                <div className="space-y-3 mb-3">
+                  {(task.comments || []).map((comment) => (
+                    <div key={comment.id} className="p-3 bg-slate-700/50 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <Avatar name={comment.userName} size="sm" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-white text-sm font-medium">
+                              {comment.userName}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-500 text-xs">
+                                {new Date(comment.createdAt).toLocaleDateString()} {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              {hasRole('admin') && (
+                                <button
+                                  onClick={() => handleDeleteComment(comment.id)}
+                                  className="p-1 rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-all"
+                                  title="Delete comment (Admin only)"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-slate-300 text-sm break-words">{comment.content}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add new comment */}
+                {user && (
+                  <div className="flex gap-2">
+                    <Avatar name={`${user.firstName} ${user.lastName}`} size="sm" />
+                    <div className="flex-1">
+                      <textarea
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            handleAddComment()
+                          }
+                        }}
+                        placeholder="Add a comment..."
+                        rows={2}
+                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors resize-none"
+                      />
+                      <div className="flex justify-end mt-2">
+                        <button
+                          onClick={handleAddComment}
+                          disabled={!newComment.trim()}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+                        >
+                          <Send size={14} />
+                          Send
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>

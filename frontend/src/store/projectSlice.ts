@@ -5,6 +5,15 @@ export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
 export type ProjectStatus = 'active' | 'completed' | 'on_hold' | 'planning' | 'cancelled'
 export type Priority = 'low' | 'medium' | 'high' | 'critical'
 
+export interface TaskComment {
+  id: string
+  userId: string
+  userName: string
+  userEmail: string
+  content: string
+  createdAt: string
+}
+
 export interface TaskWithAssignees {
   id: string
   title: string
@@ -13,7 +22,8 @@ export interface TaskWithAssignees {
   startDate: string
   endDate: string
   progress: number
-  comment?: string
+  comment?: string  // Keep for backward compatibility
+  comments?: TaskComment[]
 }
 
 export interface AuditLogEntry {

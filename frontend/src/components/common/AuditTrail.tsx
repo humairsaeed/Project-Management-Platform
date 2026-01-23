@@ -85,8 +85,14 @@ export default function AuditTrail({ projectId, externalLogs = [] }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-white">Change History</h2>
-          <p className="text-sm text-slate-400">Track all changes made to this project</p>
+          <h2 className="text-lg font-semibold text-white">
+            {projectId ? 'Change History' : 'RBAC Audit Trail'}
+          </h2>
+          <p className="text-sm text-slate-400">
+            {projectId
+              ? 'Track all changes made to this project'
+              : 'Track all role and permission changes'}
+          </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {/* Assignee Filter */}

@@ -1,107 +1,57 @@
-import { useState } from 'react'
-import { User, Shield, Search, ChevronDown } from 'lucide-react'
-
-interface UserWithRole {
-  id: string
-  email: string
-  firstName: string
-  lastName: string
-  role: string
-  roleName: string
-  team: string
-  lastActive: string
-}
-
-const mockUsers: UserWithRole[] = [
-  {
-    id: '1',
-    email: 'admin@company.com',
-    firstName: 'System',
-    lastName: 'Admin',
-    role: 'admin',
-    roleName: 'Administrator',
-    team: 'IT Infrastructure',
-    lastActive: '2025-01-20',
-  },
-  {
-    id: '2',
-    email: 'john.smith@company.com',
-    firstName: 'John',
-    lastName: 'Smith',
-    role: 'project_manager',
-    roleName: 'Project Manager',
-    team: 'Cloud Services',
-    lastActive: '2025-01-19',
-  },
-  {
-    id: '3',
-    email: 'sarah.jones@company.com',
-    firstName: 'Sarah',
-    lastName: 'Jones',
-    role: 'project_manager',
-    roleName: 'Project Manager',
-    team: 'Security',
-    lastActive: '2025-01-20',
-  },
-  {
-    id: '4',
-    email: 'mike.wilson@company.com',
-    firstName: 'Mike',
-    lastName: 'Wilson',
-    role: 'contributor',
-    roleName: 'Contributor',
-    team: 'IT Infrastructure',
-    lastActive: '2025-01-18',
-  },
-  {
-    id: '5',
-    email: 'emily.chen@company.com',
-    firstName: 'Emily',
-    lastName: 'Chen',
-    role: 'contributor',
-    roleName: 'Contributor',
-    team: 'Cloud Services',
-    lastActive: '2025-01-20',
-  },
-]
-
-const roles = [
-  { id: 'admin', name: 'Administrator' },
-  { id: 'project_manager', name: 'Project Manager' },
-  { id: 'contributor', name: 'Contributor' },
-]
+import { useState, useMemo } from 'react'
+import { Shield, Search, ChevronDown } from 'lucide-react'
+import { useTeamStore } from '../../store/teamSlice'
+import Avatar from '../common/Avatar'
 
 interface Props {
   isAdmin: boolean
 }
 
 export default function UserRoleAssignment({ isAdmin }: Props) {
-  const [users, setUsers] = useState<UserWithRole[]>(mockUsers)
+  const { users, teams, roles, updateUser } = useTeamStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [editingUser, setEditingUser] = useState<string | null>(null)
 
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter
-    return matchesSearch && matchesRole
-  })
+  // Transform users for display
+  const displayUsers = useMemo(() => {
+    return users.map((user) => {
+      const userTeams = user.teams
+        .map((teamId) => teams.find((t) => t.id === teamId)?.name)
+        .filter(Boolean)
+        .join(', ') || 'No team'
+
+      const primaryRole = user.roles[0] || 'contributor'
+      const roleName = roles.find((r) => r.name === primaryRole)?.displayName || primaryRole
+
+      return {
+        ...user,
+        teamNames: userTeams,
+        primaryRole,
+        roleName,
+      }
+    })
+  }, [users, teams, roles])
+
+  const filteredUsers = useMemo(() => {
+    return displayUsers.filter((user) => {
+      const matchesSearch =
+        user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesRole = roleFilter === 'all' || user.primaryRole === roleFilter
+      return matchesSearch && matchesRole
+    })
+  }, [displayUsers, searchQuery, roleFilter])
 
   const handleRoleChange = (userId: string, newRole: string) => {
-    setUsers(
-      users.map((user) =>
-        user.id === userId
-          ? {
-              ...user,
-              role: newRole,
-              roleName: roles.find((r) => r.id === newRole)?.name || newRole,
-            }
-          : user
-      )
-    )
+    const user = users.find((u) => u.id === userId)
+    if (user) {
+      // Update the user's primary role
+      updateUser(userId, {
+        roles: [newRole],
+      })
+    }
     setEditingUser(null)
   }
 
@@ -146,8 +96,8 @@ export default function UserRoleAssignment({ isAdmin }: Props) {
         >
           <option value="all">All Roles</option>
           {roles.map((role) => (
-            <option key={role.id} value={role.id}>
-              {role.name}
+            <option key={role.id} value={role.name}>
+              {role.displayName}
             </option>
           ))}
         </select>
@@ -172,9 +122,7 @@ export default function UserRoleAssignment({ isAdmin }: Props) {
               <tr key={user.id} className="hover:bg-slate-800/50">
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
-                      <User size={20} className="text-slate-400" />
-                    </div>
+                    <Avatar name={`${user.firstName} ${user.lastName}`} size="md" />
                     <div>
                       <div className="font-medium text-white">
                         {user.firstName} {user.lastName}
@@ -183,20 +131,20 @@ export default function UserRoleAssignment({ isAdmin }: Props) {
                     </div>
                   </div>
                 </td>
-                <td className="py-3 px-4 text-slate-300">{user.team}</td>
+                <td className="py-3 px-4 text-slate-300">{user.teamNames}</td>
                 <td className="py-3 px-4">
                   {editingUser === user.id ? (
                     <div className="relative">
                       <select
-                        value={user.role}
+                        value={user.primaryRole}
                         onChange={(e) => handleRoleChange(user.id, e.target.value)}
                         onBlur={() => setEditingUser(null)}
                         autoFocus
                         className="px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-primary-500"
                       >
                         {roles.map((role) => (
-                          <option key={role.id} value={role.id}>
-                            {role.name}
+                          <option key={role.id} value={role.name}>
+                            {role.displayName}
                           </option>
                         ))}
                       </select>
@@ -204,7 +152,7 @@ export default function UserRoleAssignment({ isAdmin }: Props) {
                   ) : (
                     <span
                       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm border ${getRoleBadgeColor(
-                        user.role
+                        user.primaryRole
                       )}`}
                     >
                       <Shield size={12} />

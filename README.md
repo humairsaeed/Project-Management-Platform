@@ -4,11 +4,37 @@ A microservices-based project management application designed to replace manual 
 
 ## Features
 
-- **Executive Dashboard**: High-end infographical UI showing portfolio overview, project progress, and milestones
+### Core Functionality
+- **Executive Dashboard**: High-end infographical UI showing portfolio overview, project progress, and milestones with analytics
 - **Interactive Gantt/Timeline**: Timeline view for milestones and task scheduling
 - **Kanban Board**: Drag-and-drop task management with status columns
+- **My Tasks Page**: Personal task view with filtering, sorting, and inline editing capabilities
 - **AI-Powered Insights**: Automatic executive summary generation and risk identification
-- **RBAC Settings**: Role-based access control with Admin, Project Manager, and Contributor roles
+
+### Role-Based Access Control (RBAC)
+- **Granular Permissions**: Six permission categories (Dashboard, Projects, Tasks, Team, Users, Settings)
+- **Custom Role Management**: Create and edit custom roles with specific permission sets
+- **System Roles**: Pre-configured Admin, Project Manager, and Contributor roles
+- **Real-Time Permission Updates**: Role and team changes apply immediately without re-login
+- **Team-Based Access**: Users only see projects where they are assigned to tasks
+
+### User & Team Management
+- **User Activity Tracking**: Login history with timestamps and user agent information
+- **Team Assignment**: Organize users into teams for better project management
+- **User Status Management**: Activate/deactivate user accounts
+- **Password Management**: Admin can reset user passwords
+
+### Project Management
+- **Project Details Editing**: Admins can edit project manager, team, and priority inline
+- **Multi-Status Tracking**: Track projects across To Do, In Progress, and Done states
+- **Task Assignment**: Assign tasks to team members with progress tracking
+- **Multi-Comment System**: Add comments to tasks with user attribution and timestamps
+- **Project Archiving**: Soft-delete projects without losing historical data
+
+### Data Management
+- **Persistent State**: Client-side state persistence with LocalStorage using Zustand
+- **Cross-Tab Synchronization**: Changes automatically sync across browser tabs
+- **Data Migration System**: Automatic schema versioning and migration for updates
 - **Audit Trail**: Complete change history tracking for compliance
 
 ## Architecture
@@ -44,8 +70,22 @@ A microservices-based project management application designed to replace manual 
 - **Database**: PostgreSQL 16 with schema separation
 - **Cache/Messaging**: Redis 7
 - **AI/LLM**: OpenAI GPT-4 for executive summaries
-- **Frontend**: React 18, TypeScript, Tailwind CSS, Zustand
+- **Frontend**: React 18, TypeScript, Tailwind CSS, Zustand (state management)
 - **Infrastructure**: Docker, Docker Compose, Nginx
+
+### Frontend State Management
+
+The application uses **Zustand** with persistence middleware for efficient state management:
+
+- **authSlice**: User authentication, JWT tokens, role/team management
+- **projectSlice**: Projects, tasks, Kanban state, milestones
+- **teamSlice**: Users, teams, roles, and RBAC permissions
+
+**Key Features:**
+- LocalStorage persistence for offline capability
+- Automatic cross-tab synchronization
+- Version-based data migration system
+- Cross-store synchronization (auth ↔ team stores)
 
 ## Quick Start - Docker Deployment
 
@@ -160,9 +200,22 @@ project-management-platform/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/         # React components
+│   │   │   ├── dashboard/     # Dashboard visualizations
+│   │   │   ├── projects/      # Project management components
+│   │   │   ├── settings/      # Settings and RBAC management
+│   │   │   └── layout/        # Layout components (Navbar, Sidebar)
 │   │   ├── pages/              # Page components
+│   │   │   ├── DashboardPage.tsx
+│   │   │   ├── ProjectsPage.tsx
+│   │   │   ├── MyTasksPage.tsx
+│   │   │   ├── TeamPage.tsx
+│   │   │   ├── SettingsPage.tsx
+│   │   │   └── LoginPage.tsx
 │   │   ├── services/           # API clients
-│   │   └── store/              # Zustand state
+│   │   └── store/              # Zustand state management
+│   │       ├── authSlice.ts   # Authentication & user state
+│   │       ├── projectSlice.ts # Projects & tasks state
+│   │       └── teamSlice.ts   # Users, teams & RBAC state
 │   ├── Dockerfile
 │   └── nginx.conf
 ├── docker/
@@ -184,6 +237,46 @@ project-management-platform/
 | Cloud Migration Planning | 70% | Low |
 | WAF/API Security | 65% | Medium |
 | Tape Library & Backup Replacements | 20% | Low |
+
+## Role-Based Access Control (RBAC)
+
+The platform includes a comprehensive RBAC system with granular permissions:
+
+### Permission Categories
+
+| Category | Permissions | Description |
+|----------|-------------|-------------|
+| **Dashboard** | access, view_analytics | Control dashboard access and analytics visibility |
+| **Projects** | create, read, update, delete, archive | Manage projects and their lifecycle |
+| **Tasks** | create, read, update, delete, assign, move | Task management and assignment |
+| **Team** | access, view_members, manage_members, manage_teams | Team visibility and management |
+| **Users** | create, read, update, delete, manage_roles | User account management |
+| **Settings** | access, manage_roles, view_audit | System settings and audit logs |
+
+### Default Roles
+
+**Administrator**
+- Full system access including all permissions
+- Can manage users, roles, and system settings
+- View all projects and analytics
+
+**Project Manager**
+- Create and manage projects
+- Assign tasks to team members
+- View team members and analytics (limited)
+- Cannot manage system settings or user roles
+
+**Contributor**
+- View assigned projects and tasks
+- Update own task progress and status
+- Add comments to tasks
+- Cannot create projects or manage users
+
+### Features
+- **Custom Roles**: Create new roles with specific permission combinations
+- **Real-Time Updates**: Permission changes apply immediately without re-login
+- **Team-Based Filtering**: Users automatically see only relevant projects
+- **Activity Tracking**: All user logins and actions are logged for audit purposes
 
 ## API Endpoints
 

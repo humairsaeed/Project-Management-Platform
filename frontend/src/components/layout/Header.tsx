@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, Search, User, LogOut, X, FolderOpen, CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
+import { Bell, Search, User, LogOut, X, FolderOpen, CheckCircle2, Clock, AlertTriangle, Settings } from 'lucide-react'
 import { useAuthStore } from '../../store/authSlice'
 import { useProjectStore } from '../../store/projectSlice'
 
@@ -12,8 +12,10 @@ export default function Header() {
   const [searchTerm, setSearchTerm] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const notificationRef = useRef<HTMLDivElement>(null)
+  const userMenuRef = useRef<HTMLDivElement>(null)
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -23,6 +25,9 @@ export default function Header() {
       }
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
         setShowNotifications(false)
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false)
       }
     }
 
@@ -224,22 +229,52 @@ export default function Header() {
         </div>
 
         {/* User menu */}
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center">
-            <User size={16} className="text-white" />
-          </div>
-          {user && (
-            <span className="text-sm text-slate-300">
-              {user.firstName} {user.lastName}
-            </span>
-          )}
+        <div ref={userMenuRef} className="relative">
           <button
-            onClick={logout}
-            className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-            title="Logout"
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-700 transition-colors"
           >
-            <LogOut size={18} />
+            <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center">
+              <User size={16} className="text-white" />
+            </div>
+            {user && (
+              <span className="text-sm text-slate-300">
+                {user.firstName} {user.lastName}
+              </span>
+            )}
           </button>
+
+          {/* User Menu Dropdown */}
+          {showUserMenu && (
+            <div className="absolute top-full right-0 mt-2 w-56 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl overflow-hidden z-50">
+              {user && (
+                <div className="px-4 py-3 border-b border-slate-700">
+                  <div className="font-medium text-white">{user.firstName} {user.lastName}</div>
+                  <div className="text-xs text-slate-400">{user.email}</div>
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  navigate('/profile')
+                  setShowUserMenu(false)
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700/50 transition-colors text-left text-slate-300 hover:text-white"
+              >
+                <Settings size={16} />
+                <span className="text-sm">My Profile</span>
+              </button>
+              <button
+                onClick={() => {
+                  logout()
+                  setShowUserMenu(false)
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700/50 transition-colors text-left text-slate-300 hover:text-white border-t border-slate-700"
+              >
+                <LogOut size={16} />
+                <span className="text-sm">Logout</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

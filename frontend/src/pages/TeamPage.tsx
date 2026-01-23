@@ -18,7 +18,7 @@ import { useTeamStore, User, Team } from '../store/teamSlice'
 type TabType = 'users' | 'teams'
 
 export default function TeamPage() {
-  const { users, teams, addUser, deleteUser, toggleUserStatus, addTeam, updateTeam, deleteTeam } = useTeamStore()
+  const { users, teams, roles, addUser, updateUser, deleteUser, toggleUserStatus, addTeam, updateTeam, deleteTeam } = useTeamStore()
   const [activeTab, setActiveTab] = useState<TabType>('users')
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddUserDialog, setShowAddUserDialog] = useState(false)
@@ -37,6 +37,8 @@ export default function TeamPage() {
     lead: '',
     members: [] as string[],
   })
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [showEditUserDialog, setShowEditUserDialog] = useState(false)
   const [editingTeam, setEditingTeam] = useState<Team | null>(null)
   const [showEditTeamDialog, setShowEditTeamDialog] = useState(false)
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
@@ -64,13 +66,41 @@ export default function TeamPage() {
   )
 
   const handleAddUser = () => {
-    if (!newUser.firstName || !newUser.lastName || !newUser.email || !newUser.password) return
+    if (!newUser.firstName || !newUser.lastName || !newUser.email || !newUser.password) {
+      alert('Please fill in all required fields')
+      return
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(newUser.email)) {
+      alert('Please enter a valid email address')
+      return
+    }
+
+    // Check if email already exists
+    if (users.some((u) => u.email.toLowerCase() === newUser.email.toLowerCase())) {
+      alert('A user with this email already exists')
+      return
+    }
+
+    // Ensure at least one role is selected
+    if (newUser.roles.length === 0) {
+      alert('Please select at least one role')
+      return
+    }
+
+    // Validate password length
+    if (newUser.password.length < 6) {
+      alert('Password must be at least 6 characters long')
+      return
+    }
 
     const user: User = {
-      id: `u${Date.now()}`,
-      firstName: newUser.firstName,
-      lastName: newUser.lastName,
-      email: newUser.email,
+      id: `u${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      firstName: newUser.firstName.trim(),
+      lastName: newUser.lastName.trim(),
+      email: newUser.email.trim().toLowerCase(),
       password: newUser.password,
       roles: newUser.roles,
       teams: newUser.teams,
@@ -79,7 +109,10 @@ export default function TeamPage() {
       loginHistory: [],
     }
 
+    console.log('Creating new user:', { ...user, password: '***' })
     addUser(user)
+    console.log('User added successfully')
+
     setShowAddUserDialog(false)
     setNewUser({
       firstName: '',
@@ -120,6 +153,51 @@ export default function TeamPage() {
 
   const handleToggleUserStatus = (userId: string) => {
     toggleUserStatus(userId)
+  }
+
+  const handleEditUser = (user: User) => {
+    setEditingUser({ ...user })
+    setShowEditUserDialog(true)
+  }
+
+  const handleSaveUser = () => {
+    if (!editingUser) return
+
+    // Validation
+    if (!editingUser.firstName || !editingUser.lastName || !editingUser.email) {
+      alert('Please fill in all required fields')
+      return
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(editingUser.email)) {
+      alert('Please enter a valid email address')
+      return
+    }
+
+    // Check if email already exists (excluding current user)
+    if (users.some((u) => u.id !== editingUser.id && u.email.toLowerCase() === editingUser.email.toLowerCase())) {
+      alert('A user with this email already exists')
+      return
+    }
+
+    // Ensure at least one role is selected
+    if (editingUser.roles.length === 0) {
+      alert('Please select at least one role')
+      return
+    }
+
+    updateUser(editingUser.id, {
+      firstName: editingUser.firstName.trim(),
+      lastName: editingUser.lastName.trim(),
+      email: editingUser.email.trim().toLowerCase(),
+      roles: editingUser.roles,
+      teams: editingUser.teams,
+    })
+
+    setShowEditUserDialog(false)
+    setEditingUser(null)
   }
 
   const handleEditTeam = (team: Team) => {
@@ -332,6 +410,13 @@ export default function TeamPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleEditUser(user)}
+                    className="p-2 rounded-lg hover:bg-primary-500/20 text-slate-400 hover:text-primary-400 transition-colors"
+                    title="Edit User"
+                  >
+                    <Edit2 size={18} />
+                  </button>
                   <button
                     onClick={() => handleResetPassword(user.id)}
                     className="p-2 rounded-lg hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 transition-colors"
@@ -586,6 +671,141 @@ export default function TeamPage() {
                 className="flex-1 px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
               >
                 Create Team
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Dialog */}
+      {showEditUserDialog && editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => {
+              setShowEditUserDialog(false)
+              setEditingUser(null)
+            }}
+          />
+          <div className="relative bg-slate-800/95 backdrop-blur-xl border border-slate-600/50 rounded-xl shadow-2xl p-6 w-full max-w-lg animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-semibold text-white mb-4">Edit User</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">First Name *</label>
+                <input
+                  type="text"
+                  value={editingUser.firstName}
+                  onChange={(e) => setEditingUser({ ...editingUser, firstName: e.target.value })}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Last Name *</label>
+                <input
+                  type="text"
+                  value={editingUser.lastName}
+                  onChange={(e) => setEditingUser({ ...editingUser, lastName: e.target.value })}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Email *</label>
+                <input
+                  type="email"
+                  value={editingUser.email}
+                  onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Roles *</label>
+                <div className="space-y-2">
+                  {roles.map((role) => (
+                    <label
+                      key={role.id}
+                      className="flex items-center gap-2 p-2 rounded hover:bg-slate-700 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={editingUser.roles.includes(role.name)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEditingUser({
+                              ...editingUser,
+                              roles: [...editingUser.roles, role.name],
+                            })
+                          } else {
+                            setEditingUser({
+                              ...editingUser,
+                              roles: editingUser.roles.filter((r) => r !== role.name),
+                            })
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">
+                        {role.displayName}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Teams</label>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {teams.map((team) => (
+                    <label
+                      key={team.id}
+                      className="flex items-center gap-2 p-2 rounded hover:bg-slate-700 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={editingUser.teams.includes(team.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEditingUser({
+                              ...editingUser,
+                              teams: [...editingUser.teams, team.id],
+                            })
+                          } else {
+                            setEditingUser({
+                              ...editingUser,
+                              teams: editingUser.teams.filter((t) => t !== team.id),
+                            })
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">
+                        {team.name}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditUserDialog(false)
+                  setEditingUser(null)
+                }}
+                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveUser}
+                disabled={!editingUser.firstName || !editingUser.lastName || !editingUser.email || editingUser.roles.length === 0}
+                className="flex-1 px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Save Changes
               </button>
             </div>
           </div>

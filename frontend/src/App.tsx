@@ -5,6 +5,7 @@ import ProjectsPage from './pages/ProjectsPage'
 import MyTasksPage from './pages/MyTasksPage'
 import TeamPage from './pages/TeamPage'
 import SettingsPage from './pages/SettingsPage'
+import ProfilePage from './pages/ProfilePage'
 import LoginPage from './pages/LoginPage'
 import { useAuthStore } from './store/authSlice'
 
@@ -38,6 +39,7 @@ function App() {
           <Route path="my-tasks" element={<MyTasksPage />} />
           <Route path="team" element={<TeamPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

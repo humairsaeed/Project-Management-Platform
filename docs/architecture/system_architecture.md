@@ -327,13 +327,70 @@ class TaskStatusChangedEvent:
 
 ### 6.3 RBAC Permissions
 
-| Resource | Admin | Project Manager | Contributor |
-|----------|-------|-----------------|-------------|
-| Projects | CRUD | CRUD (own teams) | Read |
-| Tasks | CRUD | CRUD | Update (assigned) |
-| Timesheets | Approve all | Approve team | Own only |
-| Users | CRUD | Read team | Read self |
-| AI Insights | Full | Full | Read |
+The platform implements a comprehensive permission system with six categories:
+
+#### Permission Structure
+
+```typescript
+interface Role {
+  id: string
+  name: string
+  displayName: string
+  description: string
+  isSystemRole: boolean
+  permissions: {
+    dashboard: { access: boolean; view_analytics: boolean }
+    projects: { create: boolean; read: boolean; update: boolean; delete: boolean; archive: boolean }
+    tasks: { create: boolean; read: boolean; update: boolean; delete: boolean; assign: boolean; move: boolean }
+    team: { access: boolean; view_members: boolean; manage_members: boolean; manage_teams: boolean }
+    users: { create: boolean; read: boolean; update: boolean; delete: boolean; manage_roles: boolean }
+    settings: { access: boolean; manage_roles: boolean; view_audit: boolean }
+  }
+}
+```
+
+#### Default Role Permissions
+
+| Permission Category | Admin | Project Manager | Contributor |
+|---------------------|-------|-----------------|-------------|
+| **Dashboard** | | | |
+| - Access | ✓ | ✓ | ✓ |
+| - View Analytics | ✓ | ✗ | ✗ |
+| **Projects** | | | |
+| - Create | ✓ | ✓ | ✗ |
+| - Read | ✓ | ✓ | ✓ (assigned only) |
+| - Update | ✓ | ✓ | ✗ |
+| - Delete | ✓ | ✗ | ✗ |
+| - Archive | ✓ | ✗ | ✗ |
+| **Tasks** | | | |
+| - Create | ✓ | ✓ | ✓ |
+| - Read | ✓ | ✓ | ✓ |
+| - Update | ✓ | ✓ | ✓ (assigned only) |
+| - Delete | ✓ | ✓ | ✗ |
+| - Assign | ✓ | ✓ | ✗ |
+| - Move | ✓ | ✓ | ✓ |
+| **Team** | | | |
+| - Access | ✓ | ✗ | ✗ |
+| - View Members | ✓ | ✓ | ✗ |
+| - Manage Members | ✓ | ✗ | ✗ |
+| - Manage Teams | ✓ | ✗ | ✗ |
+| **Users** | | | |
+| - Create | ✓ | ✗ | ✗ |
+| - Read | ✓ | ✓ | ✓ |
+| - Update | ✓ | ✗ | ✗ |
+| - Delete | ✓ | ✗ | ✗ |
+| - Manage Roles | ✓ | ✗ | ✗ |
+| **Settings** | | | |
+| - Access | ✓ | ✗ | ✗ |
+| - Manage Roles | ✓ | ✗ | ✗ |
+| - View Audit | ✓ | ✓ | ✗ |
+
+#### Permission Features
+
+- **Custom Roles**: Admins can create custom roles with any permission combination
+- **Real-Time Updates**: Role changes sync immediately to logged-in users via cross-store synchronization
+- **Team-Based Filtering**: Users only see projects where they're assigned to tasks
+- **Activity Logging**: User login history tracked with timestamps and user agents
 
 ---
 
@@ -394,47 +451,361 @@ Templates are stored in `insights-service/app/llm/prompts/`:
 src/
 ├── components/
 │   ├── dashboard/
-│   │   ├── ExecutiveDashboard.tsx    # Main dashboard view
-│   │   ├── PortfolioOverview.tsx     # Active/Completed counts
-│   │   ├── ProjectCard.tsx           # Project progress card
-│   │   └── RiskAlertPanel.tsx        # AI-identified risks
+│   │   ├── PortfolioMetrics.tsx      # Active/Completed project counts
+│   │   ├── ProjectTimeline.tsx       # Timeline with milestones
+│   │   ├── ProjectGrid.tsx           # Grid view of projects
+│   │   ├── RecentActivity.tsx        # Recent changes/updates
+│   │   └── RiskAlerts.tsx            # High-risk items
 │   │
-│   ├── kanban/
-│   │   ├── KanbanBoard.tsx           # Main board with DnD
-│   │   ├── KanbanColumn.tsx          # Status column
-│   │   └── KanbanCard.tsx            # Task card
+│   ├── projects/
+│   │   ├── ProjectCard.tsx           # Project card with progress
+│   │   ├── ProjectDetailModal.tsx    # Detailed project view & editing
+│   │   ├── TaskCard.tsx              # Individual task display
+│   │   ├── AddTaskForm.tsx           # Task creation form
+│   │   └── ProjectFilters.tsx        # Filter by status/priority
 │   │
-│   ├── gantt/
-│   │   ├── GanttChart.tsx            # Timeline visualization
-│   │   ├── GanttRow.tsx              # Task bar
-│   │   └── MilestoneMarker.tsx       # Diamond milestone
+│   ├── settings/
+│   │   ├── UserManager.tsx           # User CRUD operations
+│   │   ├── TeamManager.tsx           # Team management
+│   │   ├── RoleManager.tsx           # Role & permission management
+│   │   └── ActivityLog.tsx           # User activity/login history
 │   │
-│   └── insights/
-│       ├── AIInsightsPanel.tsx       # Insight display
-│       ├── ExecutiveSummary.tsx      # Generated summary
-│       └── RiskAssessment.tsx        # Risk details
+│   └── layout/
+│       ├── Navbar.tsx                # Top navigation bar
+│       ├── Sidebar.tsx               # Side navigation with permissions
+│       └── ProtectedRoute.tsx        # Route-level permission checks
+│
+├── pages/
+│   ├── DashboardPage.tsx             # Executive dashboard (/)
+│   ├── ProjectsPage.tsx              # Project list & management
+│   ├── MyTasksPage.tsx               # Personal task view with editing
+│   ├── TeamPage.tsx                  # Team & user management
+│   ├── SettingsPage.tsx              # Role & permission settings
+│   └── LoginPage.tsx                 # Authentication
+│
+└── store/
+    ├── authSlice.ts                  # User auth & permissions
+    ├── projectSlice.ts               # Projects & tasks state
+    └── teamSlice.ts                  # Users, teams, roles & RBAC
 ```
+
+#### Key Component Features
+
+**ProjectDetailModal.tsx**
+- View project details, tasks, and comments
+- **Admin Edit Mode**: Inline editing of project manager, team, and priority
+- Add/edit/delete tasks with assignee selection
+- Multi-comment system with timestamps
+- Progress tracking and status updates
+
+**MyTasksPage.tsx**
+- Personal task dashboard with filters (Active, Overdue, All)
+- Sort by due date, status, or priority
+- **Click-to-Edit**: Opens ProjectDetailModal for task editing
+- Case-insensitive assignee matching
+- Overdue indicators and progress visualization
+
+**RoleManager.tsx**
+- Create/edit custom roles
+- Granular permission management across 6 categories
+- Visual permission matrix
+- System role protection (admin, project_manager, contributor)
+- Real-time permission sync via cross-store communication
+
+**UserManager.tsx**
+- User CRUD operations with role/team assignment
+- Activity log display (last login, login history)
+- Account activation/deactivation
+- Password reset functionality
+- Login event tracking (50 most recent events)
 
 ### 8.2 State Management
 
-Using Zustand for lightweight state:
-- `authSlice` - User session, permissions
-- `projectSlice` - Active project data
-- `taskSlice` - Tasks, Kanban state
-- `uiSlice` - Theme, sidebar, modals
+The application uses **Zustand** with persistence middleware for client-side state management:
+
+#### Store Architecture
+
+```typescript
+// authSlice.ts - Authentication & User State
+interface AuthState {
+  user: User | null
+  accessToken: string | null
+  isAuthenticated: boolean
+  login: (user: User, accessToken: string) => void
+  logout: () => void
+  hasRole: (role: string) => boolean
+  updateUserRoles: (roles: string[]) => void    // Real-time role updates
+  updateUserTeams: (teams: string[]) => void    // Real-time team updates
+}
+
+// teamSlice.ts - Users, Teams & RBAC
+interface TeamState {
+  users: User[]
+  teams: Team[]
+  roles: Role[]
+  addUser: (user: User) => void
+  updateUser: (id: string, updates: Partial<User>) => void
+  deleteUser: (id: string) => void
+  toggleUserStatus: (id: string) => void
+  resetUserPassword: (id: string, newPassword: string) => void
+  recordLogin: (userId: string) => void          // Activity tracking
+  // ... team and role methods
+}
+
+// projectSlice.ts - Projects & Tasks
+interface ProjectState {
+  projects: Project[]
+  addProject: (project: Project) => void
+  updateProject: (id: string, updates: Partial<Project>) => void
+  deleteProject: (id: string) => void            // Soft delete
+  // ... task methods, Kanban state
+}
+```
+
+#### Cross-Store Synchronization
+
+When a user's role or team is updated in `teamSlice`, it automatically syncs to `authSlice`:
+
+```typescript
+// In teamSlice.ts - updateUser action
+updateUser: (id, updates) =>
+  set((state) => {
+    const updatedUsers = state.users.map((user) =>
+      user.id === id ? { ...user, ...updates } : user
+    )
+
+    // Sync with auth store if the updated user is currently logged in
+    const authUser = useAuthStore.getState().user
+    if (authUser && authUser.id === id) {
+      if (updates.roles) {
+        useAuthStore.getState().updateUserRoles(updates.roles)
+      }
+      if (updates.teams) {
+        useAuthStore.getState().updateUserTeams(updates.teams)
+      }
+    }
+
+    return { users: updatedUsers }
+  })
+```
+
+**Benefits:**
+- Permission changes apply immediately without re-login
+- No stale permission checks
+- Consistent state across the application
+
+#### Data Persistence
+
+Each store uses Zustand's `persist` middleware with LocalStorage:
+
+```typescript
+export const useTeamStore = create<TeamState>()(
+  persist(
+    (set) => ({ /* state and actions */ }),
+    {
+      name: 'team-storage',
+      version: 2,                    // Schema version
+      migrate: (persistedState, version) => {
+        // Handle migrations from older versions
+        if (version === 0) {
+          // Add new fields with defaults
+        }
+        if (version <= 1) {
+          // Add dashboard/team permissions
+        }
+        return state
+      }
+    }
+  )
+)
+```
+
+**Features:**
+- Automatic serialization/deserialization
+- Cross-tab synchronization
+- Version-based schema migration
+- Keeps last 50 login events per user
 
 ### 8.3 Real-time Updates
 
-WebSocket connection for live updates:
+**LocalStorage Events** (cross-tab synchronization):
+- User opens app in multiple tabs
+- Changes in one tab automatically sync to others
+- Powered by browser's `storage` event
+
+**State Update Patterns:**
 - Task status changes → Kanban board refresh
-- New insights → Dashboard notification
-- Milestone achieved → Timeline update
+- Role/permission updates → Immediate UI re-render
+- User login → Activity log updated
+- Project updates → Dashboard metrics recalculated
 
 ---
 
-## 9. Deployment Architecture
+## 9. Data Persistence & Migration
 
-### 9.1 Docker Compose (Development)
+### 9.1 Client-Side Persistence Strategy
+
+The frontend uses **Zustand persist middleware** with LocalStorage for data persistence:
+
+#### Storage Keys
+
+| Store | Storage Key | Version | Size Limit |
+|-------|-------------|---------|------------|
+| authSlice | `auth-storage` | 1 | ~5KB |
+| projectSlice | `project-storage` | 3 | ~100KB |
+| teamSlice | `team-storage` | 2 | ~50KB |
+
+#### Persisted State
+
+```typescript
+// authSlice - Partial persistence (security)
+partialize: (state) => ({
+  user: state.user,
+  accessToken: state.accessToken,
+  isAuthenticated: state.isAuthenticated,
+})
+// Note: Sensitive methods not persisted, only data
+
+// teamSlice - Full persistence
+persist(
+  (set) => ({ users, teams, roles, ...actions }),
+  {
+    name: 'team-storage',
+    version: 2,  // Current schema version
+  }
+)
+```
+
+### 9.2 Schema Migration System
+
+Each store implements versioned migrations to handle schema changes:
+
+#### Migration Example: Adding Dashboard Permissions
+
+```typescript
+// teamSlice.ts - Version 1 to 2 migration
+migrate: (persistedState: any, version: number) => {
+  let state = persistedState as TeamState
+
+  // Migration from version 1 to 2: add dashboard and team permissions
+  if (version <= 1) {
+    const updatedRoles = state.roles.map((role) => {
+      // Check if role already has new permission structure
+      if (!role.permissions.dashboard || !role.permissions.team) {
+        const { dashboard: _d, team: _t, ...oldPermissions } = role.permissions as any
+        return {
+          ...role,
+          permissions: {
+            dashboard: role.name === 'admin'
+              ? { access: true, view_analytics: true }
+              : { access: true, view_analytics: false },
+            ...oldPermissions,
+            team: role.name === 'admin'
+              ? { access: true, view_members: true, manage_members: true, manage_teams: true }
+              : role.name === 'project_manager'
+              ? { access: false, view_members: true, manage_members: false, manage_teams: false }
+              : { access: false, view_members: false, manage_members: false, manage_teams: false },
+          },
+        }
+      }
+      return role
+    })
+
+    state = {
+      ...state,
+      roles: updatedRoles,
+    }
+  }
+
+  return state as TeamState
+}
+```
+
+#### Migration History
+
+| Version | Store | Changes | Date |
+|---------|-------|---------|------|
+| 0 → 1 | teamSlice | Added `password` and `loginHistory` to User | Dec 2024 |
+| 1 → 2 | teamSlice | Added `dashboard` and `team` permissions to Role | Jan 2025 |
+| 2 → 3 | projectSlice | Added soft delete (`isDeleted` flag) | Jan 2025 |
+
+### 9.3 Cross-Tab Synchronization
+
+Zustand persist automatically handles cross-tab sync via browser's `storage` event:
+
+```typescript
+// Automatic behavior - no custom code needed
+// User opens app in Tab A
+Tab A: localStorage['team-storage'] = { users: [...] }
+
+// User updates role in Tab B
+Tab B: localStorage['team-storage'] = { users: [...updated] }
+
+// Tab A receives 'storage' event and re-hydrates
+Tab A: Zustand auto-reloads state from localStorage
+```
+
+**Benefits:**
+- No manual event listeners
+- Consistent state across all tabs
+- Handles rapid updates with debouncing
+- Works offline
+
+### 9.4 Data Size Management
+
+**Strategies to prevent LocalStorage overflow (5-10MB limit):**
+
+1. **Trim Login History**: Keep only last 50 login events per user
+   ```typescript
+   loginHistory: [...(user.loginHistory || []), newEvent].slice(-50)
+   ```
+
+2. **Soft Delete Projects**: Mark as deleted instead of removing
+   ```typescript
+   deleteProject: (id) => set((state) => ({
+     projects: state.projects.map((p) =>
+       p.id === id ? { ...p, isDeleted: true } : p
+     ),
+   }))
+   ```
+
+3. **Exclude Large Fields**: Don't persist computed/derivative data
+   ```typescript
+   // Don't persist large attachments or file blobs
+   partialize: (state) => ({
+     ...state,
+     attachments: undefined,  // Exclude from persistence
+   })
+   ```
+
+### 9.5 Backup & Recovery
+
+**Manual Backup** (future enhancement):
+```typescript
+// Export all stores to JSON
+const backup = {
+  auth: localStorage['auth-storage'],
+  projects: localStorage['project-storage'],
+  team: localStorage['team-storage'],
+  timestamp: new Date().toISOString(),
+}
+// Download as JSON file
+```
+
+**Recovery from Corruption:**
+```typescript
+// Clear corrupted storage
+localStorage.removeItem('team-storage')
+
+// Page reload will initialize with default data
+window.location.reload()
+```
+
+---
+
+## 10. Deployment Architecture
+
+### 10.1 Docker Compose (Development)
 
 ```yaml
 services:
@@ -475,7 +846,7 @@ services:
     ports: ["3000:3000"]
 ```
 
-### 9.2 Kubernetes (Production)
+### 10.2 Kubernetes (Production)
 
 Each service deployed as:
 - Deployment with 2+ replicas
@@ -485,9 +856,9 @@ Each service deployed as:
 
 ---
 
-## 10. Monitoring & Observability
+## 11. Monitoring & Observability
 
-### 10.1 Health Checks
+### 11.1 Health Checks
 
 Each service exposes `/health` endpoint:
 ```json
@@ -502,7 +873,7 @@ Each service exposes `/health` endpoint:
 }
 ```
 
-### 10.2 Metrics (Prometheus)
+### 11.2 Metrics (Prometheus)
 
 Key metrics:
 - Request latency (p50, p95, p99)
@@ -512,7 +883,7 @@ Key metrics:
 - Redis cache hit rate
 - LLM inference duration
 
-### 10.3 Logging
+### 11.3 Logging
 
 Structured JSON logging with correlation IDs:
 ```json
@@ -529,7 +900,7 @@ Structured JSON logging with correlation IDs:
 
 ---
 
-## 11. Environment Variables
+## 12. Environment Variables
 
 | Variable | Service | Description |
 |----------|---------|-------------|
@@ -544,7 +915,7 @@ Structured JSON logging with correlation IDs:
 
 ---
 
-## 12. Appendices
+## 13. Appendices
 
 ### A. API Specifications
 
@@ -569,3 +940,163 @@ Initial projects from IT infrastructure portfolio:
 Recent milestones: NLB Replacement, Exchange Node Addition, Oracle 19c Migration
 
 Upcoming: PAM Re-implementation, APM across DLD, Data Center Firewall
+
+---
+
+## 14. Recent Enhancements & Implementation Notes
+
+### 14.1 RBAC System Expansion (January 2025)
+
+**Problem**: Original RBAC lacked granular control over dashboard analytics and team management features.
+
+**Solution**: Extended permission system to include `dashboard` and `team` categories:
+- Dashboard permissions control analytics visibility
+- Team permissions separate viewing from management capabilities
+- Implemented version 2 migration to add permissions to existing roles
+
+**Files Modified**:
+- [teamSlice.ts](../../frontend/src/store/teamSlice.ts:38-46) - Extended Role interface
+- [RoleManager.tsx](../../frontend/src/components/settings/RoleManager.tsx) - Added UI controls
+- [authSlice.ts](../../frontend/src/store/authSlice.ts:20-21) - Added update methods
+
+### 14.2 Cross-Store State Synchronization
+
+**Problem**: When an admin changed a user's role, the logged-in user's permissions didn't update until re-login.
+
+**Solution**: Implemented cross-store synchronization between `teamSlice` and `authSlice`:
+
+```typescript
+// teamSlice.updateUser checks if modified user is currently logged in
+const authUser = useAuthStore.getState().user
+if (authUser && authUser.id === id) {
+  if (updates.roles) {
+    useAuthStore.getState().updateUserRoles(updates.roles)
+  }
+  if (updates.teams) {
+    useAuthStore.getState().updateUserTeams(updates.teams)
+  }
+}
+```
+
+**Benefits**:
+- Role changes apply immediately
+- No re-authentication required
+- Consistent permission checks across UI
+
+**Files Modified**:
+- [teamSlice.ts](../../frontend/src/store/teamSlice.ts:239-257) - Added sync logic
+- [authSlice.ts](../../frontend/src/store/authSlice.ts:53-75) - Added update methods
+
+### 14.3 Admin Project Editing
+
+**Problem**: Admins couldn't modify project metadata (manager, team, priority) after creation.
+
+**Solution**: Added inline editing mode to ProjectDetailModal:
+- Edit/Save button for admin users
+- Dropdown selects for manager, team, and priority
+- Local state management for edit mode
+- Immediate save on button click
+
+**Files Modified**:
+- [ProjectDetailModal.tsx](../../frontend/src/components/projects/ProjectDetailModal.tsx:36-53) - Added edit mode
+
+### 14.4 Task Editing from My Tasks
+
+**Problem**: Users had to navigate to Projects page to edit their assigned tasks.
+
+**Solution**: Made task cards in MyTasksPage clickable:
+- Click opens ProjectDetailModal with full task details
+- Users can edit task progress, status, and add comments
+- Seamless UX without navigation
+
+**Files Modified**:
+- [MyTasksPage.tsx](../../frontend/src/pages/MyTasksPage.tsx:20-337) - Added modal support
+
+### 14.5 User Activity Tracking
+
+**Problem**: No audit trail for user logins and system access.
+
+**Solution**: Implemented login history tracking:
+- Records timestamp and user agent on each login
+- Stores last 50 login events per user
+- Visible in user management interface
+- Updates "Last Active" timestamp
+
+**Implementation**:
+```typescript
+recordLogin: (userId) =>
+  set((state) => ({
+    users: state.users.map((user) =>
+      user.id === userId
+        ? {
+            ...user,
+            lastActive: 'Just now',
+            loginHistory: [
+              ...(user.loginHistory || []),
+              {
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent,
+              },
+            ].slice(-50), // Keep last 50 events
+          }
+        : user
+    ),
+  }))
+```
+
+**Files Modified**:
+- [teamSlice.ts](../../frontend/src/store/teamSlice.ts:280-299) - Added recordLogin action
+- [LoginPage.tsx](../../frontend/src/pages/LoginPage.tsx:39,82) - Call on successful login
+
+### 14.6 Case-Insensitive Task Assignment
+
+**Problem**: Task assignee matching was case-sensitive, causing mismatches.
+
+**Solution**: Implemented case-insensitive comparison:
+```typescript
+const isAssigned = task.assignees.some(
+  (assignee: string) => assignee.toLowerCase() === userName.toLowerCase()
+)
+```
+
+**Files Modified**:
+- [MyTasksPage.tsx](../../frontend/src/pages/MyTasksPage.tsx:41-43) - Updated comparison logic
+
+### 14.7 Soft Delete for Projects
+
+**Problem**: Deleting projects permanently removed historical data.
+
+**Solution**: Implemented soft delete with `isDeleted` flag:
+- Projects marked as deleted remain in database
+- Filtered out from main views
+- Can be recovered if needed
+- Maintains referential integrity
+
+**Files Modified**:
+- [projectSlice.ts](../../frontend/src/store/projectSlice.ts) - Added isDeleted flag
+
+### 14.8 Data Migration System
+
+**Problem**: Schema changes broke existing user data in LocalStorage.
+
+**Solution**: Implemented versioned migrations in Zustand persist:
+- Each store has version number
+- Migration function handles older versions
+- Backwards compatible with graceful fallbacks
+- Automatic on app load
+
+**Example Migrations**:
+- Version 0 → 1: Added password and loginHistory fields
+- Version 1 → 2: Added dashboard and team permissions
+
+**Implementation Pattern**:
+```typescript
+{
+  name: 'team-storage',
+  version: 2,
+  migrate: (persistedState, version) => {
+    // Apply transformations based on version
+    return updatedState
+  }
+}
+```

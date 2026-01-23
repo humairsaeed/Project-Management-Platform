@@ -42,17 +42,26 @@ export default function LoginPage() {
     } catch (apiError) {
       // Fallback to local user store validation
       if (email && password) {
-        // Find user in team store
+        console.log('API login failed, trying local authentication')
+        console.log('Total users in store:', users.length)
+        console.log('Searching for email:', email.toLowerCase())
+
+        // Find user in team store (case-insensitive)
         const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase())
 
         if (!user) {
+          console.log('User not found')
+          console.log('Available emails:', users.map(u => u.email))
           setError('Invalid email or password')
           setLoading(false)
           return
         }
 
+        console.log('User found:', { ...user, password: '***' })
+
         // Check if user is active
         if (user.status !== 'active') {
+          console.log('User account is inactive')
           setError('Your account has been deactivated. Please contact an administrator.')
           setLoading(false)
           return
@@ -60,10 +69,13 @@ export default function LoginPage() {
 
         // Validate password
         if (user.password !== password) {
+          console.log('Password mismatch')
           setError('Invalid email or password')
           setLoading(false)
           return
         }
+
+        console.log('Login successful')
 
         // Login successful
         login(

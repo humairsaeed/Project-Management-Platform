@@ -469,7 +469,6 @@ export default function ProjectsPage() {
             <List size={18} />
           </button>
         </div>
-        )}
       </div>
 
       {/* Expanded Filters */}
@@ -515,32 +514,59 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Projects Grid */}
+      {/* Projects Grid/List */}
       {currentProjects.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {currentProjects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              formatDeadline={formatDeadline}
-              formatCompletedDate={formatCompletedDate}
-              onClick={() => !project.isDeleted && setSelectedProjectId(project.id)}
-              onDelete={() => setDeleteConfirmId(project.id)}
-              onRestore={() => handleRestore(project.id)}
-              onPermanentDelete={() => setPermanentDeleteId(project.id)}
-              onMoveToUpcoming={() => handleMoveToUpcoming(project.id)}
-              onMoveToActive={() => handleMoveToActive(project.id)}
-              isDragging={draggedProjectId === project.id}
-              isDragOver={dragOverProjectId === project.id}
-              onDragStart={(e) => handleDragStart(e, project.id)}
-              onDragOver={(e) => handleDragOver(e, project.id)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, project.id)}
-              onDragEnd={handleDragEnd}
-              isDeletedTab={activeTab === 'deleted'}
-            />
-          ))}
-        </div>
+        viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {currentProjects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                formatDeadline={formatDeadline}
+                formatCompletedDate={formatCompletedDate}
+                onClick={() => !project.isDeleted && setSelectedProjectId(project.id)}
+                onDelete={() => setDeleteConfirmId(project.id)}
+                onRestore={() => handleRestore(project.id)}
+                onPermanentDelete={() => setPermanentDeleteId(project.id)}
+                onMoveToUpcoming={() => handleMoveToUpcoming(project.id)}
+                onMoveToActive={() => handleMoveToActive(project.id)}
+                isDragging={draggedProjectId === project.id}
+                isDragOver={dragOverProjectId === project.id}
+                onDragStart={(e) => handleDragStart(e, project.id)}
+                onDragOver={(e) => handleDragOver(e, project.id)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, project.id)}
+                onDragEnd={handleDragEnd}
+                isDeletedTab={activeTab === 'deleted'}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {currentProjects.map((project) => (
+              <ProjectListItem
+                key={project.id}
+                project={project}
+                formatDeadline={formatDeadline}
+                formatCompletedDate={formatCompletedDate}
+                onClick={() => !project.isDeleted && setSelectedProjectId(project.id)}
+                onDelete={() => setDeleteConfirmId(project.id)}
+                onRestore={() => handleRestore(project.id)}
+                onPermanentDelete={() => setPermanentDeleteId(project.id)}
+                onMoveToUpcoming={() => handleMoveToUpcoming(project.id)}
+                onMoveToActive={() => handleMoveToActive(project.id)}
+                isDragging={draggedProjectId === project.id}
+                isDragOver={dragOverProjectId === project.id}
+                onDragStart={(e) => handleDragStart(e, project.id)}
+                onDragOver={(e) => handleDragOver(e, project.id)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, project.id)}
+                onDragEnd={handleDragEnd}
+                isDeletedTab={activeTab === 'deleted'}
+              />
+            ))}
+          </div>
+        )
       ) : (
         <div className="card text-center py-12">
           <div className="text-slate-400 text-lg">
@@ -571,6 +597,10 @@ export default function ProjectsPage() {
             <ProjectDetailModal
               project={selectedProject}
               onClose={() => setSelectedProjectId(null)}
+              onDelete={(projectId, reason) => {
+                handleSoftDelete(projectId, reason)
+                setSelectedProjectId(null)
+              }}
             />
           </div>
         </div>
@@ -1065,6 +1095,211 @@ function ProjectCard({
           </div>
           <span>{project.team}</span>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function ProjectListItem({
+  project,
+  formatDeadline,
+  formatCompletedDate,
+  onClick,
+  onDelete,
+  onRestore,
+  onPermanentDelete,
+  onMoveToUpcoming,
+  onMoveToActive,
+  isDragging,
+  isDragOver,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
+  isDeletedTab,
+}: {
+  project: Project
+  formatDeadline: (days: number) => string
+  formatCompletedDate: (dateStr?: string) => string
+  onClick: () => void
+  onDelete: () => void
+  onRestore: () => void
+  onPermanentDelete: () => void
+  onMoveToUpcoming: () => void
+  onMoveToActive: () => void
+  isDragging: boolean
+  isDragOver: boolean
+  onDragStart: (e: React.DragEvent) => void
+  onDragOver: (e: React.DragEvent) => void
+  onDragLeave: () => void
+  onDrop: (e: React.DragEvent) => void
+  onDragEnd: () => void
+  isDeletedTab: boolean
+}) {
+  const statusConfig: Record<string, { bg: string; text: string; border: string; label: string }> = {
+    active: { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20', label: 'Active' },
+    completed: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', label: 'Completed' },
+    on_hold: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/20', label: 'On Hold' },
+    planning: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20', label: 'Planning' },
+    cancelled: { bg: 'bg-slate-500/10', text: 'text-slate-400', border: 'border-slate-500/20', label: 'Cancelled' },
+  }
+
+  const riskConfig: Record<string, { bg: string; text: string }> = {
+    low: { bg: 'bg-green-500/10', text: 'text-green-400' },
+    medium: { bg: 'bg-yellow-500/10', text: 'text-yellow-400' },
+    high: { bg: 'bg-orange-500/10', text: 'text-orange-400' },
+    critical: { bg: 'bg-red-500/10', text: 'text-red-400' },
+  }
+
+  const status = statusConfig[project.status] || statusConfig.active
+  const risk = riskConfig[project.riskLevel] || riskConfig.low
+
+  if (isDeletedTab) {
+    return (
+      <div className="bg-slate-800/50 border border-red-500/20 rounded-lg p-4 flex items-center gap-4">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-slate-400 font-medium truncate">{project.name}</h3>
+          <p className="text-slate-500 text-sm truncate">{project.description}</p>
+        </div>
+        <div className="text-xs text-red-400 whitespace-nowrap">
+          Deleted {formatCompletedDate(project.deletedAt)}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onRestore()
+            }}
+            className="px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+          >
+            <RotateCcw size={14} />
+            Restore
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onPermanentDelete()
+            }}
+            className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+          >
+            <Trash2 size={14} />
+            Delete
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      onClick={onClick}
+      className={`bg-slate-800/50 border border-slate-700 rounded-lg p-4 flex items-center gap-4 cursor-pointer hover:border-primary-500/50 hover:bg-slate-800/80 transition-all group ${
+        isDragging ? 'opacity-50 scale-98' : ''
+      } ${isDragOver ? 'border-primary-500 shadow-lg shadow-primary-500/20' : ''}`}
+    >
+      {/* Drag Handle */}
+      <div className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity">
+        <GripVertical size={16} />
+      </div>
+
+      {/* Avatar */}
+      <Avatar name={project.manager} size="md" />
+
+      {/* Project Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-3">
+          <h3 className="text-white font-medium group-hover:text-primary-400 transition-colors truncate">
+            {project.name}
+          </h3>
+          <span className={`px-2 py-0.5 rounded-full text-xs border ${status.bg} ${status.text} ${status.border}`}>
+            {status.label}
+          </span>
+          {project.status !== 'completed' && (
+            <span className={`px-2 py-0.5 rounded-full text-xs ${risk.bg} ${risk.text}`}>
+              {project.riskLevel.charAt(0).toUpperCase() + project.riskLevel.slice(1)}
+            </span>
+          )}
+        </div>
+        <p className="text-slate-500 text-sm truncate mt-0.5">{project.description}</p>
+      </div>
+
+      {/* Progress */}
+      <div className="w-32 hidden md:block">
+        <div className="flex items-center justify-between mb-1 text-xs">
+          <span className="text-slate-400">Progress</span>
+          <span className="text-white font-medium">{project.completionPercentage}%</span>
+        </div>
+        <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${
+              project.completionPercentage === 100 ? 'bg-emerald-500' : 'bg-primary-500'
+            }`}
+            style={{ width: `${project.completionPercentage}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Date */}
+      <div className="text-sm text-slate-400 whitespace-nowrap hidden lg:flex items-center gap-1.5">
+        <Calendar size={14} />
+        {project.status === 'completed'
+          ? formatCompletedDate(project.completedAt)
+          : formatDeadline(project.daysUntilDeadline)}
+      </div>
+
+      {/* Tasks Count */}
+      <div className="text-sm text-slate-500 whitespace-nowrap">
+        {project.tasks.length} tasks
+      </div>
+
+      {/* Team */}
+      <div className="text-sm text-slate-500 whitespace-nowrap hidden xl:block">
+        {project.team}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {project.status === 'active' && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onMoveToUpcoming()
+            }}
+            className="p-1.5 hover:bg-yellow-500/20 rounded-lg text-slate-500 hover:text-yellow-400 transition-colors"
+            title="Move to Upcoming"
+          >
+            <Clock size={16} />
+          </button>
+        )}
+        {project.status === 'on_hold' && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onMoveToActive()
+            }}
+            className="p-1.5 hover:bg-green-500/20 rounded-lg text-slate-500 hover:text-green-400 transition-colors"
+            title="Move to Active"
+          >
+            <MoveRight size={16} />
+          </button>
+        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete()
+          }}
+          className="p-1.5 hover:bg-red-500/20 rounded-lg text-slate-500 hover:text-red-400 transition-colors"
+          title="Delete project"
+        >
+          <Trash2 size={16} />
+        </button>
       </div>
     </div>
   )

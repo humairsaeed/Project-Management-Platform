@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   CheckCircle2,
   Circle,
@@ -55,6 +55,19 @@ export default function TaskList({
   const [showNewTaskAssigneeDropdown, setShowNewTaskAssigneeDropdown] = useState(false)
   const [newTaskAssigneeSearch, setNewTaskAssigneeSearch] = useState('')
   const [newTaskComment, setNewTaskComment] = useState('')
+  const newTaskAssigneeDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close new task assignee dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (newTaskAssigneeDropdownRef.current && !newTaskAssigneeDropdownRef.current.contains(event.target as Node)) {
+        setShowNewTaskAssigneeDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Initialize dates when form opens
   const initializeNewTaskForm = () => {
@@ -311,7 +324,7 @@ export default function TaskList({
                 </div>
 
                 {/* Assignees */}
-                <div className="relative">
+                <div ref={newTaskAssigneeDropdownRef} className="relative">
                   <label className="text-sm text-slate-400 block mb-2">Assignees</label>
                   <button
                     type="button"
@@ -486,6 +499,7 @@ function TaskRow({
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [assigneeSearch, setAssigneeSearch] = useState('')
+  const assigneeDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setEditedTask(task)
@@ -497,6 +511,18 @@ function TaskRow({
       setAssigneeSearch('')
     }
   }, [showAssigneeDropdown])
+
+  // Close assignee dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (assigneeDropdownRef.current && !assigneeDropdownRef.current.contains(event.target as Node)) {
+        setShowAssigneeDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Filter team members based on search
   const filteredMembers = teamMembers.filter((member) =>
@@ -780,7 +806,7 @@ function TaskRow({
               </div>
 
               {/* Multi-Assignee Selection */}
-              <div className="relative">
+              <div ref={assigneeDropdownRef} className="relative">
                 <label className="text-sm text-slate-400 block mb-2">Assignees</label>
                 <button
                   onClick={(e) => {

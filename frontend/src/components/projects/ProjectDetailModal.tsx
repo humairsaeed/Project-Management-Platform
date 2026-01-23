@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Calendar,
   User,
@@ -526,6 +526,23 @@ function OverviewTab({
 }) {
   const [showRiskDropdown, setShowRiskDropdown] = useState(false)
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
+  const statusDropdownRef = useRef<HTMLDivElement>(null)
+  const riskDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setShowStatusDropdown(false)
+      }
+      if (riskDropdownRef.current && !riskDropdownRef.current.contains(event.target as Node)) {
+        setShowRiskDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const riskColors: Record<string, string> = {
     low: 'text-green-400',
@@ -581,7 +598,7 @@ function OverviewTab({
         </div>
 
         {/* Editable Status */}
-        <div className="bg-slate-700/50 rounded-lg p-4 relative">
+        <div ref={statusDropdownRef} className="bg-slate-700/50 rounded-lg p-4 relative">
           <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
             <PlayCircle size={16} />
             Status
@@ -618,7 +635,7 @@ function OverviewTab({
         </div>
 
         {/* Editable Risk Level */}
-        <div className="bg-slate-700/50 rounded-lg p-4 relative">
+        <div ref={riskDropdownRef} className="bg-slate-700/50 rounded-lg p-4 relative">
           <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
             <AlertCircle size={16} />
             Risk Level

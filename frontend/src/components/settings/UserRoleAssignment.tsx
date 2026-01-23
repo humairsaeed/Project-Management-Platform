@@ -122,7 +122,11 @@ export default function UserRoleAssignment({ isAdmin }: Props) {
               <tr key={user.id} className="hover:bg-slate-800/50">
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-3">
-                    <Avatar name={`${user.firstName} ${user.lastName}`} size="md" />
+                    <Avatar
+                      name={`${user.firstName} ${user.lastName}`}
+                      size="md"
+                      imageUrl={user.avatarUrl}
+                    />
                     <div>
                       <div className="font-medium text-white">
                         {user.firstName} {user.lastName}

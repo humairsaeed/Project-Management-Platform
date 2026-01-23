@@ -28,6 +28,7 @@ export default function TeamPage() {
     lastName: '',
     email: '',
     password: '',
+    avatarUrl: '',
     roles: ['contributor'] as string[],
     teams: [] as string[],
   })
@@ -50,6 +51,37 @@ export default function TeamPage() {
   const getTeamName = (teamId: string) => {
     const team = teams.find((t) => t.id === teamId)
     return team?.name || teamId
+  }
+
+  const handleAvatarInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    onChange: (dataUrl: string) => void
+  ) => {
+    const input = e.target
+    const file = input.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file')
+      input.value = ''
+      return
+    }
+
+    const maxBytes = 2 * 1024 * 1024
+    if (file.size > maxBytes) {
+      alert('Image must be 2MB or smaller')
+      input.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        onChange(reader.result)
+      }
+      input.value = ''
+    }
+    reader.readAsDataURL(file)
   }
 
   const filteredUsers = users.filter(
@@ -102,6 +134,7 @@ export default function TeamPage() {
       lastName: newUser.lastName.trim(),
       email: newUser.email.trim().toLowerCase(),
       password: newUser.password,
+      avatarUrl: newUser.avatarUrl || undefined,
       roles: newUser.roles,
       teams: newUser.teams,
       status: 'active',
@@ -119,6 +152,7 @@ export default function TeamPage() {
       lastName: '',
       email: '',
       password: '',
+      avatarUrl: '',
       roles: ['contributor'],
       teams: [],
     })
@@ -192,6 +226,7 @@ export default function TeamPage() {
       firstName: editingUser.firstName.trim(),
       lastName: editingUser.lastName.trim(),
       email: editingUser.email.trim().toLowerCase(),
+      avatarUrl: editingUser.avatarUrl,
       roles: editingUser.roles,
       teams: editingUser.teams,
     })
@@ -368,6 +403,7 @@ export default function TeamPage() {
                 <Avatar
                   name={`${user.firstName} ${user.lastName}`}
                   size="lg"
+                  imageUrl={user.avatarUrl}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -505,6 +541,7 @@ export default function TeamPage() {
                       <Avatar
                         name={`${teamLead.firstName} ${teamLead.lastName}`}
                         size="sm"
+                        imageUrl={teamLead.avatarUrl}
                       />
                       <span className="text-sm text-white">
                         {teamLead.firstName} {teamLead.lastName}
@@ -575,6 +612,40 @@ export default function TeamPage() {
                   placeholder="Enter initial password"
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
                 />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Profile Photo</label>
+                <div className="flex items-center gap-3">
+                  <Avatar
+                    name={`${newUser.firstName || 'New'} ${newUser.lastName || 'User'}`}
+                    size="lg"
+                    showTooltip={false}
+                    imageUrl={newUser.avatarUrl || undefined}
+                  />
+                  <div className="flex flex-col gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) =>
+                        handleAvatarInputChange(e, (dataUrl) =>
+                          setNewUser({ ...newUser, avatarUrl: dataUrl })
+                        )
+                      }
+                      className="text-sm text-slate-300"
+                    />
+                    {newUser.avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setNewUser({ ...newUser, avatarUrl: '' })}
+                        className="text-xs text-slate-400 hover:text-white"
+                      >
+                        Remove photo
+                      </button>
+                    )}
+                    <span className="text-xs text-slate-500">PNG/JPG up to 2MB</span>
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -719,6 +790,40 @@ export default function TeamPage() {
                   onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
                 />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Profile Photo</label>
+                <div className="flex items-center gap-3">
+                  <Avatar
+                    name={`${editingUser.firstName} ${editingUser.lastName}`}
+                    size="lg"
+                    showTooltip={false}
+                    imageUrl={editingUser.avatarUrl}
+                  />
+                  <div className="flex flex-col gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) =>
+                        handleAvatarInputChange(e, (dataUrl) =>
+                          setEditingUser({ ...editingUser, avatarUrl: dataUrl })
+                        )
+                      }
+                      className="text-sm text-slate-300"
+                    />
+                    {editingUser.avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingUser({ ...editingUser, avatarUrl: undefined })}
+                        className="text-xs text-slate-400 hover:text-white"
+                      >
+                        Remove photo
+                      </button>
+                    )}
+                    <span className="text-xs text-slate-500">PNG/JPG up to 2MB</span>
+                  </div>
+                </div>
               </div>
 
               <div>

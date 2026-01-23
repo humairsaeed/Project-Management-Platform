@@ -17,6 +17,7 @@ export default function ProfilePage() {
     firstName: fullUser?.firstName || '',
     lastName: fullUser?.lastName || '',
     email: fullUser?.email || '',
+    avatarUrl: fullUser?.avatarUrl || '',
   })
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -34,6 +35,34 @@ export default function ProfilePage() {
     )
   }
 
+  const handleAvatarInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target
+    const file = input.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file')
+      input.value = ''
+      return
+    }
+
+    const maxBytes = 2 * 1024 * 1024
+    if (file.size > maxBytes) {
+      alert('Image must be 2MB or smaller')
+      input.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setEditedUser((prev) => ({ ...prev, avatarUrl: reader.result as string }))
+      }
+      input.value = ''
+    }
+    reader.readAsDataURL(file)
+  }
+
   const handleSaveProfile = () => {
     if (!editedUser.firstName || !editedUser.lastName || !editedUser.email) {
       setError('All fields are required')
@@ -44,6 +73,7 @@ export default function ProfilePage() {
       firstName: editedUser.firstName,
       lastName: editedUser.lastName,
       email: editedUser.email,
+      avatarUrl: editedUser.avatarUrl || undefined,
     })
 
     setEditing(false)
@@ -135,6 +165,7 @@ export default function ProfilePage() {
             <Avatar
               name={`${fullUser.firstName} ${fullUser.lastName}`}
               size="lg"
+              imageUrl={fullUser.avatarUrl}
             />
             <div>
               <h2 className="text-xl font-bold text-white">
@@ -162,6 +193,7 @@ export default function ProfilePage() {
                   firstName: fullUser.firstName,
                   lastName: fullUser.lastName,
                   email: fullUser.email,
+                  avatarUrl: fullUser.avatarUrl || '',
                 })
               }}
               className="btn-secondary flex items-center gap-2"
@@ -203,6 +235,36 @@ export default function ProfilePage() {
                 onChange={(e) => setEditedUser({ ...editedUser, email: e.target.value })}
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
               />
+            </div>
+
+            <div>
+              <label className="text-sm text-slate-400 block mb-2">Profile Photo</label>
+              <div className="flex items-center gap-3">
+                <Avatar
+                  name={`${editedUser.firstName} ${editedUser.lastName}`}
+                  size="lg"
+                  showTooltip={false}
+                  imageUrl={editedUser.avatarUrl || undefined}
+                />
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarInputChange}
+                    className="text-sm text-slate-300"
+                  />
+                  {editedUser.avatarUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEditedUser({ ...editedUser, avatarUrl: '' })}
+                      className="text-xs text-slate-400 hover:text-white"
+                    >
+                      Remove photo
+                    </button>
+                  )}
+                  <span className="text-xs text-slate-500">PNG/JPG up to 2MB</span>
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center gap-3 pt-4">

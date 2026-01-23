@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, Search, User, LogOut, X, FolderOpen, CheckCircle2, Clock, AlertTriangle, Settings } from 'lucide-react'
+import { Bell, Search, LogOut, X, FolderOpen, CheckCircle2, Clock, AlertTriangle, Settings } from 'lucide-react'
 import { useAuthStore } from '../../store/authSlice'
 import { useProjectStore } from '../../store/projectSlice'
+import Avatar from '../common/Avatar'
 
 export default function Header() {
   const { user, logout } = useAuthStore()
@@ -234,9 +235,18 @@ export default function Header() {
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-700 transition-colors"
           >
-            <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center">
-              <User size={16} className="text-white" />
-            </div>
+            {user ? (
+              <Avatar
+                name={`${user.firstName} ${user.lastName}`}
+                size="md"
+                showTooltip={false}
+                imageUrl={user.avatarUrl}
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center">
+                <span className="text-white text-xs font-medium">?</span>
+              </div>
+            )}
             {user && (
               <span className="text-sm text-slate-300">
                 {user.firstName} {user.lastName}

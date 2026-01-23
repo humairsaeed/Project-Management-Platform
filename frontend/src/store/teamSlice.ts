@@ -7,6 +7,7 @@ export interface User {
   firstName: string
   lastName: string
   email: string
+  avatarUrl?: string
   roles: string[]
   teams: string[]
   status: 'active' | 'inactive'
@@ -159,6 +160,15 @@ export const useTeamStore = create<TeamState>()(
           // Sync with auth store if the updated user is currently logged in
           const authUser = useAuthStore.getState().user
           if (authUser && authUser.id === id) {
+            const profileUpdates: Partial<typeof authUser> = {}
+            if (updates.firstName !== undefined) profileUpdates.firstName = updates.firstName
+            if (updates.lastName !== undefined) profileUpdates.lastName = updates.lastName
+            if (updates.email !== undefined) profileUpdates.email = updates.email
+            if (updates.avatarUrl !== undefined) profileUpdates.avatarUrl = updates.avatarUrl
+
+            if (Object.keys(profileUpdates).length > 0) {
+              useAuthStore.getState().updateUserProfile(profileUpdates)
+            }
             if (updates.roles) {
               useAuthStore.getState().updateUserRoles(updates.roles)
             }

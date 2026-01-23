@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface AvatarProps {
   name: string
+  imageUrl?: string
   size?: 'sm' | 'md' | 'lg'
   showTooltip?: boolean
   className?: string
@@ -39,8 +40,19 @@ const getInitials = (name: string): string => {
   return name.slice(0, 2).toUpperCase()
 }
 
-export default function Avatar({ name, size = 'md', showTooltip = true, className = '' }: AvatarProps) {
+export default function Avatar({
+  name,
+  imageUrl,
+  size = 'md',
+  showTooltip = true,
+  className = '',
+}: AvatarProps) {
   const [showName, setShowName] = useState(false)
+  const [imageError, setImageError] = useState(false)
+
+  useEffect(() => {
+    setImageError(false)
+  }, [imageUrl])
 
   const sizeClasses = {
     sm: 'w-6 h-6 text-[10px]',
@@ -50,6 +62,7 @@ export default function Avatar({ name, size = 'md', showTooltip = true, classNam
 
   const color = getAvatarColor(name)
   const initials = getInitials(name)
+  const showImage = Boolean(imageUrl && !imageError)
 
   return (
     <div className="relative inline-block">
@@ -59,7 +72,16 @@ export default function Avatar({ name, size = 'md', showTooltip = true, classNam
         onMouseEnter={() => setShowName(true)}
         onMouseLeave={() => setShowName(false)}
       >
-        {initials}
+        {showImage ? (
+          <img
+            src={imageUrl}
+            alt={name}
+            className="w-full h-full rounded-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          initials
+        )}
       </div>
 
       {/* Tooltip */}

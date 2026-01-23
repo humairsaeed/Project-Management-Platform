@@ -129,7 +129,7 @@ export default function UserActivityAnalytics() {
               className="p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <Avatar name={data.userName} size="md" />
+                <Avatar name={data.userName} size="md" imageUrl={data.user.avatarUrl} />
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">

@@ -17,6 +17,7 @@ export function useLogin() {
           email: data.user.email,
           firstName: data.user.firstName,
           lastName: data.user.lastName,
+          avatarUrl: data.user.avatarUrl,
           roles: data.user.roles,
           teams: data.user.teams.map((t) => t.id),
         },

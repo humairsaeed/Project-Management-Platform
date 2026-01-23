@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authSlice'
+import { useTeamStore } from '../store/teamSlice'
 import api from '../services/api'
 
 export default function LoginPage() {
   const navigate = useNavigate()
   const login = useAuthStore((state) => state.login)
+  const { users } = useTeamStore()
   const [email, setEmail] = useState('admin@company.com')
   const [password, setPassword] = useState('demo123')
   const [error, setError] = useState('')
@@ -34,19 +36,42 @@ export default function LoginPage() {
       )
       navigate('/dashboard')
     } catch (apiError) {
-      // Fallback to mock login if API is not available
-      console.warn('API login failed, using mock login:', apiError)
+      // Fallback to local user store validation
+      console.warn('API login failed, using local user validation:', apiError)
 
       if (email && password) {
-        const isAdmin = email.toLowerCase().includes('admin')
+        // Find user in team store
+        const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase())
+
+        if (!user) {
+          setError('Invalid email or password')
+          setLoading(false)
+          return
+        }
+
+        // Check if user is active
+        if (user.status !== 'active') {
+          setError('Your account has been deactivated. Please contact an administrator.')
+          setLoading(false)
+          return
+        }
+
+        // Validate password
+        if (user.password !== password) {
+          setError('Invalid email or password')
+          setLoading(false)
+          return
+        }
+
+        // Login successful
         login(
           {
-            id: '1',
-            email,
-            firstName: email.split('@')[0].split('.')[0] || 'Demo',
-            lastName: email.split('@')[0].split('.')[1] || 'User',
-            roles: isAdmin ? ['admin'] : ['project_manager'],
-            teams: ['team-1'],
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            roles: user.roles,
+            teams: user.teams,
           },
           'mock-jwt-token'
         )

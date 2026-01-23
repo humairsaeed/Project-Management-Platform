@@ -89,8 +89,8 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
   const storeProject = projects.find((p) => p.id === project.id)
   const auditLogs = getProjectAuditLogs(project.id)
 
-  // Get current user
-  const { user } = useAuthStore()
+  // Get current user and permissions
+  const { user, hasRole } = useAuthStore()
 
   // Local tasks state initialized from store
   const [tasks, setTasks] = useState<TaskWithAssignees[]>(
@@ -356,8 +356,8 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
           project={{ ...project, completionPercentage: currentCompletion, riskLevel: currentRiskLevel, status: storeProject?.status || project.status }}
           stats={{ completedTasks, inProgressTasks, todoTasks, totalTasks: tasks.length }}
           onRiskLevelChange={handleRiskLevelChange}
-          onStatusChange={handleStatusChange}
-          onDelete={onDelete ? (reason: string) => {
+          onStatusChange={hasRole('admin') ? handleStatusChange : undefined}
+          onDelete={hasRole('admin') && onDelete ? (reason: string) => {
             // Capture who deleted the project
             if (user) {
               updateProject(project.id, {
@@ -370,6 +370,7 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
             onDelete(project.id, reason)
             onClose()
           } : undefined}
+          isAdmin={hasRole('admin')}
         />
       )}
 
@@ -464,12 +465,14 @@ function OverviewTab({
   onRiskLevelChange,
   onStatusChange,
   onDelete,
+  isAdmin,
 }: {
   project: ProjectDetailModalProps['project']
   stats: { completedTasks: number; inProgressTasks: number; todoTasks: number; totalTasks: number }
   onRiskLevelChange: (riskLevel: RiskLevel) => void
-  onStatusChange: (status: ProjectStatus) => void
+  onStatusChange?: (status: ProjectStatus) => void
   onDelete?: (reason: string) => void
+  isAdmin: boolean
 }) {
   const [showRiskDropdown, setShowRiskDropdown] = useState(false)
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
@@ -560,76 +563,92 @@ function OverviewTab({
           <div className="text-2xl font-bold text-white">{project.completionPercentage}%</div>
         </div>
 
-        {/* Editable Status */}
+        {/* Status (Editable for Admin only) */}
         <div ref={statusDropdownRef} className="bg-slate-700/50 rounded-lg p-4 relative">
           <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
             <PlayCircle size={16} />
             Status
-            <Edit2 size={12} className="ml-auto opacity-50" />
+            {isAdmin && onStatusChange && <Edit2 size={12} className="ml-auto opacity-50" />}
           </div>
-          <button
-            onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-            className={`text-2xl font-bold ${statusColors[project.status]} flex items-center gap-2 hover:opacity-80 transition-opacity`}
-          >
-            {statusLabels[project.status] || project.status}
-            <ChevronDown size={18} className={`transition-transform ${showStatusDropdown ? 'rotate-180' : ''}`} />
-          </button>
+          {isAdmin && onStatusChange ? (
+            <>
+              <button
+                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                className={`text-2xl font-bold ${statusColors[project.status]} flex items-center gap-2 hover:opacity-80 transition-opacity`}
+              >
+                {statusLabels[project.status] || project.status}
+                <ChevronDown size={18} className={`transition-transform ${showStatusDropdown ? 'rotate-180' : ''}`} />
+              </button>
 
-          {/* Status Dropdown */}
-          {showStatusDropdown && (
-            <div className="absolute z-50 top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl overflow-hidden">
-              {statusOptions.map((status) => (
-                <button
-                  key={status}
-                  onClick={() => {
-                    onStatusChange(status)
-                    setShowStatusDropdown(false)
-                  }}
-                  className={`w-full px-4 py-2.5 text-left flex items-center justify-between ${statusBgColors[status]} ${statusColors[status]} transition-colors`}
-                >
-                  {statusLabels[status]}
-                  {project.status === status && (
-                    <CheckCircle2 size={16} />
-                  )}
-                </button>
-              ))}
+              {/* Status Dropdown */}
+              {showStatusDropdown && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl overflow-hidden">
+                  {statusOptions.map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => {
+                        onStatusChange(status)
+                        setShowStatusDropdown(false)
+                      }}
+                      className={`w-full px-4 py-2.5 text-left flex items-center justify-between ${statusBgColors[status]} ${statusColors[status]} transition-colors`}
+                    >
+                      {statusLabels[status]}
+                      {project.status === status && (
+                        <CheckCircle2 size={16} />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className={`text-2xl font-bold ${statusColors[project.status]}`}>
+              {statusLabels[project.status] || project.status}
             </div>
           )}
         </div>
 
-        {/* Editable Risk Level */}
+        {/* Risk Level (Editable for Admin only) */}
         <div ref={riskDropdownRef} className="bg-slate-700/50 rounded-lg p-4 relative">
           <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
             <AlertCircle size={16} />
             Risk Level
-            <Edit2 size={12} className="ml-auto opacity-50" />
+            {isAdmin && <Edit2 size={12} className="ml-auto opacity-50" />}
           </div>
-          <button
-            onClick={() => setShowRiskDropdown(!showRiskDropdown)}
-            className={`text-2xl font-bold capitalize ${riskColors[project.riskLevel]} flex items-center gap-2 hover:opacity-80 transition-opacity`}
-          >
-            {project.riskLevel}
-            <ChevronDown size={18} className={`transition-transform ${showRiskDropdown ? 'rotate-180' : ''}`} />
-          </button>
+          {isAdmin ? (
+            <>
+              <button
+                onClick={() => setShowRiskDropdown(!showRiskDropdown)}
+                className={`text-2xl font-bold capitalize ${riskColors[project.riskLevel]} flex items-center gap-2 hover:opacity-80 transition-opacity`}
+              >
+                {project.riskLevel}
+                <ChevronDown size={18} className={`transition-transform ${showRiskDropdown ? 'rotate-180' : ''}`} />
+              </button>
 
-          {/* Risk Level Dropdown */}
-          {showRiskDropdown && (
-            <div className="absolute z-50 top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl overflow-hidden">
-              {riskOptions.map((level) => (
-                <button
-                  key={level}
-                  onClick={() => {
-                    onRiskLevelChange(level)
-                    setShowRiskDropdown(false)
-                  }}
-                  className={`w-full px-4 py-2.5 text-left capitalize flex items-center justify-between ${riskBgColors[level]} ${riskColors[level]} transition-colors`}
-                >
-                  {level}
-                  {project.riskLevel === level && (
-                    <CheckCircle2 size={16} />
-                  )}
-                </button>
-              ))}
+              {/* Risk Level Dropdown */}
+              {showRiskDropdown && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl overflow-hidden">
+                  {riskOptions.map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => {
+                        onRiskLevelChange(level)
+                        setShowRiskDropdown(false)
+                      }}
+                      className={`w-full px-4 py-2.5 text-left capitalize flex items-center justify-between ${riskBgColors[level]} ${riskColors[level]} transition-colors`}
+                    >
+                      {level}
+                      {project.riskLevel === level && (
+                        <CheckCircle2 size={16} />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className={`text-2xl font-bold capitalize ${riskColors[project.riskLevel]}`}>
+              {project.riskLevel}
             </div>
           )}
         </div>

@@ -8,8 +8,8 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const login = useAuthStore((state) => state.login)
   const { users, recordLogin } = useTeamStore()
-  const [email, setEmail] = useState('admin@company.com')
-  const [password, setPassword] = useState('demo123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -42,26 +42,17 @@ export default function LoginPage() {
     } catch (apiError) {
       // Fallback to local user store validation
       if (email && password) {
-        console.log('API login failed, trying local authentication')
-        console.log('Total users in store:', users.length)
-        console.log('Searching for email:', email.toLowerCase())
-
         // Find user in team store (case-insensitive)
         const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase())
 
         if (!user) {
-          console.log('User not found')
-          console.log('Available emails:', users.map(u => u.email))
           setError('Invalid email or password')
           setLoading(false)
           return
         }
 
-        console.log('User found:', { ...user, password: '***' })
-
         // Check if user is active
         if (user.status !== 'active') {
-          console.log('User account is inactive')
           setError('Your account has been deactivated. Please contact an administrator.')
           setLoading(false)
           return
@@ -69,13 +60,10 @@ export default function LoginPage() {
 
         // Validate password
         if (user.password !== password) {
-          console.log('Password mismatch')
           setError('Invalid email or password')
           setLoading(false)
           return
         }
-
-        console.log('Login successful')
 
         // Login successful
         login(
@@ -157,12 +145,13 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Demo Credentials Info */}
+          {/* Default Admin Credentials Info */}
           <div className="mt-6 p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-            <p className="text-sm text-slate-300 font-medium mb-2">Demo Credentials</p>
+            <p className="text-sm text-slate-300 font-medium mb-2">Default Admin Credentials</p>
             <div className="text-xs text-slate-400 space-y-1">
-              <p><strong>Admin:</strong> admin@company.com / demo123</p>
-              <p><strong>PM:</strong> john.smith@company.com / demo123</p>
+              <p><strong>Email:</strong> admin@company.com</p>
+              <p><strong>Password:</strong> Admin@123</p>
+              <p className="text-amber-400 mt-2">Please change the default password after first login.</p>
             </div>
           </div>
         </div>

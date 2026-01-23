@@ -72,98 +72,13 @@ export interface Milestone {
   completedAt?: string
 }
 
-// Initial mock data
-const initialProjects: Project[] = [
-  {
-    id: '1',
-    name: 'Vulnerabilities Remediation',
-    description: 'Address critical security vulnerabilities across production systems including patch management, configuration hardening, and penetration testing remediation.',
-    completionPercentage: 56,
-    status: 'active',
-    riskLevel: 'medium',
-    daysUntilDeadline: 30,
-    priority: 'high',
-    manager: 'John Smith',
-    team: 'Security',
-    tasks: [
-      { id: 't1', title: 'WAF Rule Design', status: 'done', assignees: ['John Smith'], startDate: '2025-01-01', endDate: '2025-01-15', progress: 100 },
-      { id: 't2', title: 'API Inventory', status: 'done', assignees: ['Sarah Jones'], startDate: '2025-01-05', endDate: '2025-01-12', progress: 100 },
-      { id: 't3', title: 'Test Environment Setup', status: 'done', assignees: ['Mike Wilson'], startDate: '2025-01-10', endDate: '2025-01-17', progress: 100 },
-      { id: 't4', title: 'Production WAF Deployment', status: 'in_progress', assignees: ['John Smith', 'Emily Chen'], startDate: '2025-01-15', endDate: '2025-02-05', progress: 60 },
-      { id: 't5', title: 'API Gateway Integration', status: 'in_progress', assignees: ['Emily Chen'], startDate: '2025-01-20', endDate: '2025-02-10', progress: 30 },
-      { id: 't6', title: 'Security Testing', status: 'todo', assignees: ['Sarah Jones', 'Mike Wilson'], startDate: '2025-02-01', endDate: '2025-02-15', progress: 0 },
-      { id: 't7', title: 'Documentation', status: 'todo', assignees: ['Mike Wilson'], startDate: '2025-02-10', endDate: '2025-02-20', progress: 0 },
-    ],
-  },
-  {
-    id: '2',
-    name: 'Cloud Migration Planning',
-    description: 'Plan and execute migration of on-premises infrastructure to Azure cloud including assessment, architecture design, and pilot migrations.',
-    completionPercentage: 70,
-    status: 'active',
-    riskLevel: 'low',
-    daysUntilDeadline: 60,
-    priority: 'high',
-    manager: 'Sarah Jones',
-    team: 'Cloud Services',
-    tasks: [
-      { id: 't1', title: 'Infrastructure Assessment', status: 'done', assignees: ['Sarah Jones'], startDate: '2025-01-01', endDate: '2025-01-10', progress: 100 },
-      { id: 't2', title: 'Architecture Design', status: 'done', assignees: ['David Lee'], startDate: '2025-01-08', endDate: '2025-01-20', progress: 100 },
-      { id: 't3', title: 'Cost Analysis', status: 'done', assignees: ['Emily Chen'], startDate: '2025-01-15', endDate: '2025-01-25', progress: 100 },
-      { id: 't4', title: 'Pilot Migration', status: 'in_progress', assignees: ['Sarah Jones', 'David Lee'], startDate: '2025-01-25', endDate: '2025-02-15', progress: 50 },
-      { id: 't5', title: 'Documentation & Training', status: 'todo', assignees: ['Emily Chen'], startDate: '2025-02-10', endDate: '2025-02-28', progress: 0 },
-    ],
-  },
-  {
-    id: '3',
-    name: 'WAF/API Security',
-    description: 'Implement Web Application Firewall and API Gateway security controls to protect public-facing applications and services.',
-    completionPercentage: 65,
-    status: 'active',
-    riskLevel: 'medium',
-    daysUntilDeadline: 45,
-    priority: 'critical',
-    manager: 'Mike Wilson',
-    team: 'Security',
-    tasks: [
-      { id: 't1', title: 'Requirements Gathering', status: 'done', assignees: ['Mike Wilson'], startDate: '2025-01-01', endDate: '2025-01-08', progress: 100 },
-      { id: 't2', title: 'Vendor Selection', status: 'done', assignees: ['Mike Wilson', 'John Smith'], startDate: '2025-01-05', endDate: '2025-01-15', progress: 100 },
-      { id: 't3', title: 'POC Implementation', status: 'done', assignees: ['John Smith'], startDate: '2025-01-12', endDate: '2025-01-25', progress: 100 },
-      { id: 't4', title: 'Production Deployment', status: 'in_progress', assignees: ['John Smith', 'Emily Chen'], startDate: '2025-01-25', endDate: '2025-02-10', progress: 40 },
-      { id: 't5', title: 'Monitoring Setup', status: 'todo', assignees: ['Emily Chen'], startDate: '2025-02-08', endDate: '2025-02-20', progress: 0 },
-    ],
-  },
-  {
-    id: '4',
-    name: 'Tape Library & Backup Replacements',
-    description: 'Replace aging tape library infrastructure with modern backup solutions including disk-based backup and cloud archival integration.',
-    completionPercentage: 20,
-    status: 'active',
-    riskLevel: 'low',
-    daysUntilDeadline: 120,
-    priority: 'medium',
-    manager: 'Emily Chen',
-    team: 'IT Infrastructure',
-    tasks: [
-      { id: 't1', title: 'Inventory Assessment', status: 'done', assignees: ['Emily Chen'], startDate: '2025-01-01', endDate: '2025-01-15', progress: 100 },
-      { id: 't2', title: 'Solution Design', status: 'in_progress', assignees: ['Emily Chen', 'David Lee'], startDate: '2025-01-12', endDate: '2025-02-01', progress: 50 },
-      { id: 't3', title: 'Procurement', status: 'todo', assignees: ['David Lee'], startDate: '2025-02-01', endDate: '2025-02-28', progress: 0 },
-      { id: 't4', title: 'Installation', status: 'todo', assignees: ['Emily Chen', 'David Lee'], startDate: '2025-03-01', endDate: '2025-03-30', progress: 0 },
-      { id: 't5', title: 'Data Migration', status: 'todo', assignees: ['Emily Chen'], startDate: '2025-04-01', endDate: '2025-04-30', progress: 0 },
-    ],
-  },
-]
+// Production: Empty initial data - admin will create projects as needed
+const initialProjects: Project[] = []
 
+// Production: Empty milestones - will be populated as projects are created and completed
 const initialMilestones: { recent: Milestone[]; upcoming: Milestone[] } = {
-  recent: [
-    { id: '1', name: 'NLB Replacement', projectName: 'Infrastructure Upgrade', status: 'achieved', completedAt: '2025-01-15' },
-    { id: '2', name: 'Exchange Node Addition', projectName: 'Email Infrastructure', status: 'achieved', completedAt: '2025-01-10' },
-    { id: '3', name: 'Oracle 19c Migration', projectName: 'Database Upgrade', status: 'achieved', completedAt: '2025-01-05' },
-  ],
-  upcoming: [
-    { id: '4', name: 'Production Deployment', projectName: 'WAF/API Security', targetDate: '2025-02-15' },
-    { id: '5', name: 'Phase 1 Complete', projectName: 'Cloud Migration', targetDate: '2025-03-01' },
-  ],
+  recent: [],
+  upcoming: [],
 }
 
 interface ProjectState {

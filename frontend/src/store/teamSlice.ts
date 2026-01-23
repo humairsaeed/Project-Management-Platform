@@ -93,111 +93,25 @@ const defaultRoles: Role[] = [
   },
 ]
 
+// Production: Only one admin account for initial setup
+// Admin can create additional users as needed
 const defaultUsers: User[] = [
   {
-    id: '0',
-    firstName: 'Admin',
-    lastName: 'User',
+    id: 'admin-001',
+    firstName: 'System',
+    lastName: 'Administrator',
     email: 'admin@company.com',
-    password: 'demo123',
+    password: 'Admin@123',
     roles: ['admin'],
     teams: [],
     status: 'active',
-    lastActive: 'Just now',
-    loginHistory: [],
-  },
-  {
-    id: '1',
-    firstName: 'John',
-    lastName: 'Smith',
-    email: 'john.smith@company.com',
-    password: 'demo123',
-    roles: ['project_manager'],
-    teams: ['Security', 'Leadership'],
-    status: 'active',
-    lastActive: '2 minutes ago',
-    loginHistory: [],
-  },
-  {
-    id: '2',
-    firstName: 'Sarah',
-    lastName: 'Jones',
-    email: 'sarah.jones@company.com',
-    password: 'demo123',
-    roles: ['project_manager'],
-    teams: ['Cloud Services'],
-    status: 'active',
-    lastActive: '5 minutes ago',
-    loginHistory: [],
-  },
-  {
-    id: '3',
-    firstName: 'Mike',
-    lastName: 'Wilson',
-    email: 'mike.wilson@company.com',
-    password: 'demo123',
-    roles: ['contributor'],
-    teams: ['Security', 'IT Infrastructure'],
-    status: 'active',
-    lastActive: '1 hour ago',
-    loginHistory: [],
-  },
-  {
-    id: '4',
-    firstName: 'Emily',
-    lastName: 'Chen',
-    email: 'emily.chen@company.com',
-    password: 'demo123',
-    roles: ['contributor'],
-    teams: ['Cloud Services'],
-    status: 'active',
-    lastActive: '3 hours ago',
-    loginHistory: [],
-  },
-  {
-    id: '5',
-    firstName: 'David',
-    lastName: 'Lee',
-    email: 'david.lee@company.com',
-    password: 'demo123',
-    roles: ['contributor'],
-    teams: ['DevOps'],
-    status: 'active',
-    lastActive: '1 day ago',
+    lastActive: 'Never',
     loginHistory: [],
   },
 ]
 
-const defaultTeams: Team[] = [
-  {
-    id: 't1',
-    name: 'Security',
-    description: 'Security and compliance team',
-    members: ['1', '3'],
-    lead: '1',
-  },
-  {
-    id: 't2',
-    name: 'Cloud Services',
-    description: 'Cloud infrastructure and services',
-    members: ['2', '4'],
-    lead: '2',
-  },
-  {
-    id: 't3',
-    name: 'IT Infrastructure',
-    description: 'IT infrastructure and operations',
-    members: ['3'],
-    lead: '3',
-  },
-  {
-    id: 't4',
-    name: 'DevOps',
-    description: 'DevOps and CI/CD',
-    members: ['5'],
-    lead: '5',
-  },
-]
+// Production: Empty teams array - admin will create teams as needed
+const defaultTeams: Team[] = []
 
 interface TeamState {
   users: User[]

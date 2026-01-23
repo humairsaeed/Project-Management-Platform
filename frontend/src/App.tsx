@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import MainLayout from './components/layout/MainLayout'
 import DashboardPage from './pages/DashboardPage'
 import ProjectsPage from './pages/ProjectsPage'
+import MyTasksPage from './pages/MyTasksPage'
+import TeamPage from './pages/TeamPage'
 import SettingsPage from './pages/SettingsPage'
 import LoginPage from './pages/LoginPage'
 import { useAuthStore } from './store/authSlice'
@@ -33,6 +35,8 @@ function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="projects" element={<ProjectsPage />} />
+          <Route path="my-tasks" element={<MyTasksPage />} />
+          <Route path="team" element={<TeamPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

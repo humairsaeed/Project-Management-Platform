@@ -5,17 +5,22 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Users,
+  CheckSquare,
 } from 'lucide-react'
 import { useUIStore } from '../../store/uiSlice'
+import { useAuthStore } from '../../store/authSlice'
 
 const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/projects', label: 'Projects', icon: FolderKanban },
-  { path: '/settings', label: 'Settings', icon: Settings },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'project_manager', 'contributor'] },
+  { path: '/projects', label: 'Projects', icon: FolderKanban, roles: ['admin', 'project_manager', 'contributor'] },
+  { path: '/team', label: 'Team', icon: Users, roles: ['admin'] },
+  { path: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
 ]
 
 export default function Sidebar() {
   const { sidebarOpen, toggleSidebar } = useUIStore()
+  const { hasRole } = useAuthStore()
 
   return (
     <aside
@@ -38,22 +43,48 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="p-4 space-y-2">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                isActive
-                  ? 'bg-primary-600 text-white'
-                  : 'text-slate-400 hover:bg-slate-700 hover:text-white'
-              }`
-            }
-          >
-            <item.icon size={20} />
-            {sidebarOpen && <span>{item.label}</span>}
-          </NavLink>
-        ))}
+        {navItems
+          .filter((item) => item.roles.some((role) => hasRole(role)))
+          .map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-primary-600 text-white'
+                    : 'text-slate-400 hover:bg-slate-700 hover:text-white'
+                }`
+              }
+            >
+              <item.icon size={20} />
+              {sidebarOpen && <span>{item.label}</span>}
+            </NavLink>
+          ))}
+
+        {/* My Tasks - Only for Contributors and Project Managers */}
+        {(hasRole('contributor') || hasRole('project_manager')) && (
+          <>
+            {sidebarOpen && (
+              <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase">
+                My Work
+              </div>
+            )}
+            <NavLink
+              to="/my-tasks"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-primary-600 text-white'
+                    : 'text-slate-400 hover:bg-slate-700 hover:text-white'
+                }`
+              }
+            >
+              <CheckSquare size={20} />
+              {sidebarOpen && <span>My Tasks</span>}
+            </NavLink>
+          </>
+        )}
       </nav>
     </aside>
   )

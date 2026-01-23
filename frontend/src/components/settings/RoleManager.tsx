@@ -69,8 +69,51 @@ interface Props {
 }
 
 export default function RoleManager({ isAdmin }: Props) {
-  const [roles] = useState<Role[]>(mockRoles)
+  const [roles, setRoles] = useState<Role[]>(mockRoles)
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [newRole, setNewRole] = useState<Partial<Role>>({
+    name: '',
+    displayName: '',
+    description: '',
+    isSystemRole: false,
+    permissions: {
+      projects: { create: false, read: true, update: false, delete: false, archive: false },
+      tasks: { create: false, read: true, update: false, delete: false, assign: false, move: false },
+      users: { create: false, read: true, update: false, delete: false, manage_roles: false },
+      settings: { access: false, manage_roles: false, view_audit: false },
+    },
+  })
+
+  const handleCreateRole = () => {
+    if (!newRole.name || !newRole.displayName) return
+
+    const role: Role = {
+      id: `custom-${Date.now()}`,
+      name: newRole.name!,
+      displayName: newRole.displayName!,
+      description: newRole.description || '',
+      isSystemRole: false,
+      permissions: newRole.permissions!,
+    }
+
+    setRoles([...roles, role])
+    setShowCreateDialog(false)
+    setSelectedRole(role)
+    // Reset form
+    setNewRole({
+      name: '',
+      displayName: '',
+      description: '',
+      isSystemRole: false,
+      permissions: {
+        projects: { create: false, read: true, update: false, delete: false, archive: false },
+        tasks: { create: false, read: true, update: false, delete: false, assign: false, move: false },
+        users: { create: false, read: true, update: false, delete: false, manage_roles: false },
+        settings: { access: false, manage_roles: false, view_audit: false },
+      },
+    })
+  }
 
   const PermissionBadge = ({ allowed }: { allowed: boolean }) => (
     <span
@@ -90,7 +133,7 @@ export default function RoleManager({ isAdmin }: Props) {
           <p className="text-sm text-slate-400">Define permissions for each role in the system</p>
         </div>
         {isAdmin && (
-          <button className="btn-primary" disabled>
+          <button className="btn-primary" onClick={() => setShowCreateDialog(true)}>
             Create Custom Role
           </button>
         )}
@@ -236,6 +279,70 @@ export default function RoleManager({ isAdmin }: Props) {
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Create Role Dialog */}
+      {showCreateDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowCreateDialog(false)}
+          />
+          <div className="relative bg-slate-800/95 backdrop-blur-xl border border-slate-600/50 rounded-xl shadow-2xl p-6 w-full max-w-lg animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-semibold text-white mb-4">Create Custom Role</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Role Name (Identifier) *</label>
+                <input
+                  type="text"
+                  value={newRole.name}
+                  onChange={(e) => setNewRole({ ...newRole, name: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
+                  placeholder="e.g., senior_developer"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Display Name *</label>
+                <input
+                  type="text"
+                  value={newRole.displayName}
+                  onChange={(e) => setNewRole({ ...newRole, displayName: e.target.value })}
+                  placeholder="e.g., Senior Developer"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Description</label>
+                <textarea
+                  value={newRole.description}
+                  onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
+                  placeholder="Describe the role's purpose..."
+                  rows={2}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mt-6">
+              <button
+                onClick={() => setShowCreateDialog(false)}
+                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateRole}
+                disabled={!newRole.name || !newRole.displayName}
+                className="flex-1 px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Create Role
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -41,27 +41,18 @@ export default function LoginPage() {
       navigate('/dashboard')
     } catch (apiError) {
       // Fallback to local user store validation
-      console.warn('API login failed, using local user validation:', apiError)
-
       if (email && password) {
-        console.log('Attempting local user validation for:', email)
-        console.log('Total users in store:', users.length)
-
         // Find user in team store
         const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase())
 
         if (!user) {
-          console.error('User not found:', email)
           setError('Invalid email or password')
           setLoading(false)
           return
         }
 
-        console.log('Found user:', user.email, 'Status:', user.status)
-
         // Check if user is active
         if (user.status !== 'active') {
-          console.error('User is not active:', user.status)
           setError('Your account has been deactivated. Please contact an administrator.')
           setLoading(false)
           return
@@ -69,13 +60,10 @@ export default function LoginPage() {
 
         // Validate password
         if (user.password !== password) {
-          console.error('Invalid password for user:', user.email)
           setError('Invalid email or password')
           setLoading(false)
           return
         }
-
-        console.log('Login successful for:', user.email)
 
         // Login successful
         login(
@@ -90,11 +78,9 @@ export default function LoginPage() {
           'mock-jwt-token'
         )
 
-        console.log('Recording login activity for user:', user.id)
         // Record login activity
         recordLogin(user.id)
 
-        console.log('Navigating to dashboard')
         navigate('/dashboard')
       } else {
         setError('Please enter email and password')

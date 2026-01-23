@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { useAuthStore } from './authSlice'
 
 export interface User {
   id: string
@@ -35,8 +36,10 @@ export interface Role {
   description: string
   isSystemRole: boolean
   permissions: {
+    dashboard: { access: boolean; view_analytics: boolean }
     projects: { create: boolean; read: boolean; update: boolean; delete: boolean; archive: boolean }
     tasks: { create: boolean; read: boolean; update: boolean; delete: boolean; assign: boolean; move: boolean }
+    team: { access: boolean; view_members: boolean; manage_members: boolean; manage_teams: boolean }
     users: { create: boolean; read: boolean; update: boolean; delete: boolean; manage_roles: boolean }
     settings: { access: boolean; manage_roles: boolean; view_audit: boolean }
   }
@@ -50,8 +53,10 @@ const defaultRoles: Role[] = [
     description: 'Full system access including user management and settings',
     isSystemRole: true,
     permissions: {
+      dashboard: { access: true, view_analytics: true },
       projects: { create: true, read: true, update: true, delete: true, archive: true },
       tasks: { create: true, read: true, update: true, delete: true, assign: true, move: true },
+      team: { access: true, view_members: true, manage_members: true, manage_teams: true },
       users: { create: true, read: true, update: true, delete: true, manage_roles: true },
       settings: { access: true, manage_roles: true, view_audit: true },
     },
@@ -63,8 +68,10 @@ const defaultRoles: Role[] = [
     description: 'Can manage projects and tasks, assign team members',
     isSystemRole: true,
     permissions: {
+      dashboard: { access: true, view_analytics: false },
       projects: { create: true, read: true, update: true, delete: false, archive: false },
       tasks: { create: true, read: true, update: true, delete: true, assign: true, move: true },
+      team: { access: false, view_members: true, manage_members: false, manage_teams: false },
       users: { create: false, read: true, update: false, delete: false, manage_roles: false },
       settings: { access: false, manage_roles: false, view_audit: true },
     },
@@ -76,8 +83,10 @@ const defaultRoles: Role[] = [
     description: 'Can view and update assigned tasks',
     isSystemRole: true,
     permissions: {
+      dashboard: { access: true, view_analytics: false },
       projects: { create: false, read: true, update: false, delete: false, archive: false },
       tasks: { create: true, read: true, update: true, delete: false, assign: false, move: true },
+      team: { access: false, view_members: false, manage_members: false, manage_teams: false },
       users: { create: false, read: true, update: false, delete: false, manage_roles: false },
       settings: { access: false, manage_roles: false, view_audit: false },
     },
@@ -228,11 +237,24 @@ export const useTeamStore = create<TeamState>()(
         })),
 
       updateUser: (id, updates) =>
-        set((state) => ({
-          users: state.users.map((user) =>
+        set((state) => {
+          const updatedUsers = state.users.map((user) =>
             user.id === id ? { ...user, ...updates } : user
-          ),
-        })),
+          )
+
+          // Sync with auth store if the updated user is currently logged in
+          const authUser = useAuthStore.getState().user
+          if (authUser && authUser.id === id) {
+            if (updates.roles) {
+              useAuthStore.getState().updateUserRoles(updates.roles)
+            }
+            if (updates.teams) {
+              useAuthStore.getState().updateUserTeams(updates.teams)
+            }
+          }
+
+          return { users: updatedUsers }
+        }),
 
       deleteUser: (id) =>
         set((state) => ({
@@ -257,9 +279,6 @@ export const useTeamStore = create<TeamState>()(
 
       recordLogin: (userId) =>
         set((state) => {
-          console.log('Recording login for userId:', userId)
-          console.log('Total users before update:', state.users.length)
-
           const updatedUsers = state.users.map((user) =>
             user.id === userId
               ? {
@@ -275,10 +294,6 @@ export const useTeamStore = create<TeamState>()(
                 }
               : user
           )
-
-          console.log('Total users after update:', updatedUsers.length)
-          const updatedUser = updatedUsers.find((u) => u.id === userId)
-          console.log('Updated user:', updatedUser ? `${updatedUser.firstName} ${updatedUser.lastName}` : 'not found')
 
           return { users: updatedUsers }
         }),
@@ -321,32 +336,59 @@ export const useTeamStore = create<TeamState>()(
     }),
     {
       name: 'team-storage',
-      version: 1,
+      version: 2,
       migrate: (persistedState: any, version: number) => {
-        // If migrating from version 0 (or no version), add passwords to default users
-        if (version === 0) {
-          const state = persistedState as TeamState
+        let state = persistedState as TeamState
 
-          // Update existing users with passwords if they don't have them
+        // Migration from version 0 to 1: add passwords and loginHistory
+        if (version === 0) {
           const updatedUsers = state.users.map((user) => {
-            // If user doesn't have a password, set default password
             if (!user.password) {
               return { ...user, password: 'demo123', loginHistory: [] }
             }
-            // Ensure loginHistory exists
             if (!user.loginHistory) {
               return { ...user, loginHistory: [] }
             }
             return user
           })
 
-          return {
+          state = {
             ...state,
             users: updatedUsers,
           }
         }
 
-        return persistedState as TeamState
+        // Migration from version 1 to 2: add dashboard and team permissions
+        if (version <= 1) {
+          const updatedRoles = state.roles.map((role) => {
+            // Check if role already has new permission structure
+            if (!role.permissions.dashboard || !role.permissions.team) {
+              const { dashboard: _d, team: _t, ...oldPermissions } = role.permissions as any
+              return {
+                ...role,
+                permissions: {
+                  dashboard: role.name === 'admin'
+                    ? { access: true, view_analytics: true }
+                    : { access: true, view_analytics: false },
+                  ...oldPermissions,
+                  team: role.name === 'admin'
+                    ? { access: true, view_members: true, manage_members: true, manage_teams: true }
+                    : role.name === 'project_manager'
+                    ? { access: false, view_members: true, manage_members: false, manage_teams: false }
+                    : { access: false, view_members: false, manage_members: false, manage_teams: false },
+                },
+              }
+            }
+            return role
+          })
+
+          state = {
+            ...state,
+            roles: updatedRoles,
+          }
+        }
+
+        return state as TeamState
       },
     }
   )

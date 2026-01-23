@@ -7,8 +7,10 @@ interface Props {
 }
 
 const emptyPermissions = {
+  dashboard: { access: false, view_analytics: false },
   projects: { create: false, read: true, update: false, delete: false, archive: false },
   tasks: { create: false, read: true, update: false, delete: false, assign: false, move: false },
+  team: { access: false, view_members: false, manage_members: false, manage_teams: false },
   users: { create: false, read: true, update: false, delete: false, manage_roles: false },
   settings: { access: false, manage_roles: false, view_audit: false },
 }
@@ -72,7 +74,7 @@ export default function RoleManager({ isAdmin }: Props) {
   }
 
   const togglePermission = (
-    category: 'projects' | 'tasks' | 'users' | 'settings',
+    category: 'dashboard' | 'projects' | 'tasks' | 'team' | 'users' | 'settings',
     permission: string
   ) => {
     if (!editingRole) return
@@ -369,6 +371,31 @@ export default function RoleManager({ isAdmin }: Props) {
             <div className="mb-6">
               <h4 className="text-sm font-medium text-white mb-3">Permissions</h4>
               <div className="space-y-4">
+                {/* Dashboard Permissions */}
+                <div className="bg-slate-700/50 rounded-lg p-4">
+                  <h5 className="text-sm font-medium text-white mb-3">Dashboard</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.dashboard.access}
+                        onChange={() => togglePermission('dashboard', 'access')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Access</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.dashboard.view_analytics}
+                        onChange={() => togglePermission('dashboard', 'view_analytics')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">View Analytics</span>
+                    </label>
+                  </div>
+                </div>
+
                 {/* Projects Permissions */}
                 <div className="bg-slate-700/50 rounded-lg p-4">
                   <h5 className="text-sm font-medium text-white mb-3">Projects</h5>
@@ -478,6 +505,49 @@ export default function RoleManager({ isAdmin }: Props) {
                         className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
                       />
                       <span className="text-sm text-slate-300">Move</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Team Permissions */}
+                <div className="bg-slate-700/50 rounded-lg p-4">
+                  <h5 className="text-sm font-medium text-white mb-3">Team</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.team.access}
+                        onChange={() => togglePermission('team', 'access')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Access</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.team.view_members}
+                        onChange={() => togglePermission('team', 'view_members')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">View Members</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.team.manage_members}
+                        onChange={() => togglePermission('team', 'manage_members')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Manage Members</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.team.manage_teams}
+                        onChange={() => togglePermission('team', 'manage_teams')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Manage Teams</span>
                     </label>
                   </div>
                 </div>

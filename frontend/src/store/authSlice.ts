@@ -17,6 +17,8 @@ interface AuthState {
   login: (user: User, accessToken: string) => void
   logout: () => void
   hasRole: (role: string) => boolean
+  updateUserRoles: (roles: string[]) => void
+  updateUserTeams: (teams: string[]) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -46,6 +48,30 @@ export const useAuthStore = create<AuthState>()(
         const user = get().user
         if (!user) return false
         return user.roles.includes(role) || user.roles.includes('admin')
+      },
+
+      updateUserRoles: (roles) => {
+        const user = get().user
+        if (user) {
+          set({
+            user: {
+              ...user,
+              roles,
+            },
+          })
+        }
+      },
+
+      updateUserTeams: (teams) => {
+        const user = get().user
+        if (user) {
+          set({
+            user: {
+              ...user,
+              teams,
+            },
+          })
+        }
       },
     }),
     {

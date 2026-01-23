@@ -18,7 +18,7 @@ import Modal from '../common/Modal'
 import TaskList from './TaskList'
 import AuditTrail from '../common/AuditTrail'
 import Avatar, { AvatarGroup } from '../common/Avatar'
-import { useProjectStore, type TaskWithAssignees as StoreTaskWithAssignees, type RiskLevel, type ProjectStatus, type AuditLogEntry } from '../../store/projectSlice'
+import { useProjectStore, type TaskWithAssignees as StoreTaskWithAssignees, type RiskLevel, type ProjectStatus, type Priority, type AuditLogEntry } from '../../store/projectSlice'
 import { useAuthStore } from '../../store/authSlice'
 
 interface ProjectDetailModalProps {
@@ -478,8 +478,13 @@ function OverviewTab({
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleteReason, setDeleteReason] = useState('')
+  const [editingDetails, setEditingDetails] = useState(false)
+  const [localManager, setLocalManager] = useState(project.manager || '')
+  const [localTeam, setLocalTeam] = useState(project.team || '')
+  const [localPriority, setLocalPriority] = useState<string>(project.priority || 'medium')
   const statusDropdownRef = useRef<HTMLDivElement>(null)
   const riskDropdownRef = useRef<HTMLDivElement>(null)
+  const { updateProject } = useProjectStore()
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -691,25 +696,88 @@ function OverviewTab({
       {/* Project Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
-          <h3 className="text-lg font-medium text-white">Project Details</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium text-white">Project Details</h3>
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  if (editingDetails) {
+                    // Save changes
+                    updateProject(project.id, {
+                      manager: localManager,
+                      team: localTeam,
+                      priority: localPriority as Priority,
+                    })
+                  }
+                  setEditingDetails(!editingDetails)
+                }}
+                className="text-sm px-3 py-1 rounded-lg bg-primary-500 hover:bg-primary-600 text-white transition-colors"
+              >
+                {editingDetails ? 'Save' : 'Edit'}
+              </button>
+            )}
+          </div>
 
           <div className="space-y-3">
             <div className="flex items-center gap-3 text-sm">
               <User size={16} className="text-slate-400" />
               <span className="text-slate-400">Assigned to:</span>
-              <span className="text-white">{project.manager || 'Not assigned'}</span>
+              {editingDetails ? (
+                <select
+                  value={localManager}
+                  onChange={(e) => setLocalManager(e.target.value)}
+                  className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-primary-500"
+                >
+                  <option value="">Not assigned</option>
+                  <option value="John Smith">John Smith</option>
+                  <option value="Sarah Jones">Sarah Jones</option>
+                  <option value="Mike Wilson">Mike Wilson</option>
+                  <option value="Emily Chen">Emily Chen</option>
+                  <option value="David Lee">David Lee</option>
+                </select>
+              ) : (
+                <span className="text-white">{project.manager || 'Not assigned'}</span>
+              )}
             </div>
 
             <div className="flex items-center gap-3 text-sm">
               <Users size={16} className="text-slate-400" />
               <span className="text-slate-400">Team:</span>
-              <span className="text-white">{project.team || 'Not assigned'}</span>
+              {editingDetails ? (
+                <select
+                  value={localTeam}
+                  onChange={(e) => setLocalTeam(e.target.value)}
+                  className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-primary-500"
+                >
+                  <option value="">Not assigned</option>
+                  <option value="Security">Security</option>
+                  <option value="Cloud Services">Cloud Services</option>
+                  <option value="IT Infrastructure">IT Infrastructure</option>
+                  <option value="DevOps">DevOps</option>
+                  <option value="Engineering">Engineering</option>
+                </select>
+              ) : (
+                <span className="text-white">{project.team || 'Not assigned'}</span>
+              )}
             </div>
 
             <div className="flex items-center gap-3 text-sm">
               <Calendar size={16} className="text-slate-400" />
               <span className="text-slate-400">Priority:</span>
-              <span className="text-white capitalize">{project.priority}</span>
+              {editingDetails ? (
+                <select
+                  value={localPriority}
+                  onChange={(e) => setLocalPriority(e.target.value)}
+                  className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-primary-500"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              ) : (
+                <span className="text-white capitalize">{project.priority}</span>
+              )}
             </div>
           </div>
         </div>

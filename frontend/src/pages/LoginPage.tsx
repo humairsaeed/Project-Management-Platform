@@ -41,15 +41,22 @@ export default function LoginPage() {
       navigate('/dashboard')
     } catch (apiError) {
       // Fallback to local user store validation
+      console.log('API authentication failed, falling back to local store')
+      console.log('Total users in store:', users.length)
+      console.log('User emails:', users.map(u => u.email))
+
       if (email && password) {
         // Find user in team store (case-insensitive)
         const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase())
 
         if (!user) {
+          console.log('User not found for email:', email)
           setError('Invalid email or password')
           setLoading(false)
           return
         }
+
+        console.log('User found:', user.email, '- Status:', user.status)
 
         // Check if user is active
         if (user.status !== 'active') {
@@ -144,16 +151,6 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </form>
-
-          {/* Default Admin Credentials Info */}
-          <div className="mt-6 p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-            <p className="text-sm text-slate-300 font-medium mb-2">Default Admin Credentials</p>
-            <div className="text-xs text-slate-400 space-y-1">
-              <p><strong>Email:</strong> admin@company.com</p>
-              <p><strong>Password:</strong> Admin@123</p>
-              <p className="text-amber-400 mt-2">Please change the default password after first login.</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

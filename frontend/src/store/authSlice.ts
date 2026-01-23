@@ -76,11 +76,24 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      version: 1,
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
         isAuthenticated: state.isAuthenticated,
       }),
+      migrate: (persistedState: any, version: number) => {
+        // Migration to version 1: PRODUCTION RESET - Force logout all sessions
+        if (version === 0) {
+          console.log('Migrating auth to production version 1: Forcing logout')
+          return {
+            user: null,
+            accessToken: null,
+            isAuthenticated: false,
+          }
+        }
+        return persistedState
+      },
     }
   )
 )

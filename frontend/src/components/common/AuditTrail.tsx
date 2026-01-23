@@ -3,96 +3,23 @@ import { Clock, FileText, ArrowRight, Filter, ChevronDown, ChevronUp, Users } fr
 import type { AuditLogEntry } from '../projects/ProjectDetailModal'
 import Avatar from './Avatar'
 
-// Initial mock audit logs for the project
-const initialMockAuditLogs: AuditLogEntry[] = [
-  {
-    id: '1',
-    userId: '1',
-    userEmail: 'john.smith@company.com',
-    userName: 'John Smith',
-    tableName: 'projects.tasks',
-    recordId: '1',
-    recordName: 'WAF Rule Design',
-    action: 'STATUS_CHANGE',
-    oldValue: { status: 'in_progress', progress: 80 },
-    newValue: { status: 'done', progress: 100 },
-    changedFields: ['status', 'progress'],
-    createdAt: '2025-01-20T14:30:00Z',
-  },
-  {
-    id: '2',
-    userId: '2',
-    userEmail: 'sarah.jones@company.com',
-    userName: 'Sarah Jones',
-    tableName: 'projects.tasks',
-    recordId: '1',
-    recordName: 'API Gateway Integration',
-    action: 'UPDATE',
-    oldValue: { assignees: 'Mike Wilson' },
-    newValue: { assignees: 'Emily Chen' },
-    changedFields: ['assignees'],
-    createdAt: '2025-01-20T13:15:00Z',
-  },
-  {
-    id: '3',
-    userId: '1',
-    userEmail: 'john.smith@company.com',
-    userName: 'John Smith',
-    tableName: 'projects.tasks',
-    recordId: '1',
-    recordName: 'Test Environment Setup',
-    action: 'STATUS_CHANGE',
-    oldValue: { status: 'in_progress' },
-    newValue: { status: 'done' },
-    changedFields: ['status'],
-    createdAt: '2025-01-19T11:00:00Z',
-  },
-  {
-    id: '4',
-    userId: '3',
-    userEmail: 'mike.wilson@company.com',
-    userName: 'Mike Wilson',
-    tableName: 'projects.tasks',
-    recordId: '1',
-    recordName: 'Security Testing',
-    action: 'CREATE',
-    oldValue: null,
-    newValue: { title: 'Security Testing', status: 'todo', progress: 0 },
-    changedFields: [],
-    createdAt: '2025-01-18T09:45:00Z',
-  },
-  {
-    id: '5',
-    userId: '2',
-    userEmail: 'sarah.jones@company.com',
-    userName: 'Sarah Jones',
-    tableName: 'projects.tasks',
-    recordId: '1',
-    recordName: 'API Inventory',
-    action: 'UPDATE',
-    oldValue: { progress: 60 },
-    newValue: { progress: 100 },
-    changedFields: ['progress'],
-    createdAt: '2025-01-17T16:30:00Z',
-  },
-]
-
 interface Props {
-  projectId?: string
+  projectId: string
   externalLogs?: AuditLogEntry[]
 }
 
-export default function AuditTrail({ projectId: _projectId, externalLogs = [] }: Props) {
+export default function AuditTrail({ projectId, externalLogs = [] }: Props) {
   const [actionFilter, setActionFilter] = useState<string>('all')
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all')
   const [expandedLog, setExpandedLog] = useState<string | null>(null)
 
-  // Combine external logs (from live edits) with mock data
+  // Use only project-specific logs from the store
   const allLogs = useMemo(() => {
-    const combined = [...externalLogs, ...initialMockAuditLogs]
-    // Sort by date, most recent first
-    return combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  }, [externalLogs])
+    // Filter logs to only show those for this project and sort by date
+    return [...externalLogs]
+      .filter((log) => log.recordId === projectId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  }, [externalLogs, projectId])
 
   // Get unique assignees for filter dropdown
   const uniqueAssignees = useMemo(() => {

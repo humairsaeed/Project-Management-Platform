@@ -18,7 +18,7 @@ import Modal from '../common/Modal'
 import TaskList from './TaskList'
 import AuditTrail from '../common/AuditTrail'
 import Avatar, { AvatarGroup } from '../common/Avatar'
-import { useProjectStore, type TaskWithAssignees as StoreTaskWithAssignees, type RiskLevel, type ProjectStatus } from '../../store/projectSlice'
+import { useProjectStore, type TaskWithAssignees as StoreTaskWithAssignees, type RiskLevel, type ProjectStatus, type AuditLogEntry } from '../../store/projectSlice'
 
 interface ProjectDetailModalProps {
   project: {
@@ -57,26 +57,13 @@ export interface TaskWithAssignees {
   comment?: string
 }
 
-export interface AuditLogEntry {
-  id: string
-  userId: string
-  userEmail: string
-  userName: string
-  tableName: string
-  recordId: string
-  recordName: string
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE'
-  oldValue: Record<string, unknown> | null
-  newValue: Record<string, unknown> | null
-  changedFields: string[]
-  createdAt: string
-}
+// Re-export AuditLogEntry from store for backward compatibility
+export type { AuditLogEntry } from '../../store/projectSlice'
 
 type Tab = 'overview' | 'tasks' | 'gantt' | 'audit'
 
 export default function ProjectDetailModal({ project, onClose, onDelete }: ProjectDetailModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([])
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
   // Status change confirmation dialog state
@@ -93,8 +80,9 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
   }>({ isOpen: false, reason: '' })
 
   // Get project from store
-  const { projects, updateProjectTasks, updateProject } = useProjectStore()
+  const { projects, updateProjectTasks, updateProject, addAuditLog: storeAddAuditLog, getProjectAuditLogs } = useProjectStore()
   const storeProject = projects.find((p) => p.id === project.id)
+  const auditLogs = getProjectAuditLogs(project.id)
 
   // Local tasks state initialized from store
   const [tasks, setTasks] = useState<TaskWithAssignees[]>(
@@ -122,7 +110,7 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
     { id: 'audit' as const, label: 'History', icon: History },
   ]
 
-  // Add audit log entry
+  // Add audit log entry to the store
   const addAuditLog = useCallback((
     action: AuditLogEntry['action'],
     recordName: string,
@@ -145,8 +133,8 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
       changedFields,
       createdAt: new Date().toISOString(),
     }
-    setAuditLogs((prev) => [newLog, ...prev])
-  }, [project.id])
+    storeAddAuditLog(project.id, newLog)
+  }, [project.id, storeAddAuditLog])
 
   const handleTaskUpdate = (taskId: string, updates: Partial<TaskWithAssignees>) => {
     const oldTask = tasks.find((t) => t.id === taskId)
@@ -760,6 +748,9 @@ function OverviewTab({
           </div>
         </div>
       </div>
+
+      {/* Spacer for delete button */}
+      <div className="h-16" />
     </div>
   )
 }

@@ -16,6 +16,21 @@ export interface TaskWithAssignees {
   comment?: string
 }
 
+export interface AuditLogEntry {
+  id: string
+  userId: string
+  userEmail: string
+  userName: string
+  tableName: string
+  recordId: string
+  recordName: string
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE'
+  oldValue: Record<string, unknown> | null
+  newValue: Record<string, unknown> | null
+  changedFields: string[]
+  createdAt: string
+}
+
 export interface Project {
   id: string
   name: string
@@ -28,6 +43,7 @@ export interface Project {
   manager: string
   team: string
   tasks: TaskWithAssignees[]
+  auditLogs?: AuditLogEntry[] // Per-project audit history
   completedAt?: string // When project was marked as complete
   isDeleted?: boolean // Soft delete flag
   deletedAt?: string // When project was deleted
@@ -157,6 +173,8 @@ interface ProjectState {
   moveToActive: (projectId: string) => void
   addMilestone: (milestone: Milestone, type: 'recent' | 'upcoming') => void
   moveMilestoneToRecent: (milestoneId: string) => void
+  addAuditLog: (projectId: string, log: AuditLogEntry) => void
+  getProjectAuditLogs: (projectId: string) => AuditLogEntry[]
   getActiveProjects: () => Project[]
   getCompletedProjects: () => Project[]
   getDeletedProjects: () => Project[]
@@ -345,6 +363,21 @@ export const useProjectStore = create<ProjectState>()(
             },
           }
         })
+      },
+
+      addAuditLog: (projectId, log) => {
+        set((state) => ({
+          projects: state.projects.map((p) =>
+            p.id === projectId
+              ? { ...p, auditLogs: [log, ...(p.auditLogs || [])] }
+              : p
+          ),
+        }))
+      },
+
+      getProjectAuditLogs: (projectId) => {
+        const project = get().projects.find((p) => p.id === projectId)
+        return project?.auditLogs || []
       },
 
       getActiveProjects: () => {

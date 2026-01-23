@@ -11,6 +11,13 @@ export interface User {
   status: 'active' | 'inactive'
   lastActive: string
   password?: string // In a real app, this would be handled server-side
+  loginHistory?: LoginEvent[]
+}
+
+export interface LoginEvent {
+  timestamp: string
+  ipAddress?: string
+  userAgent?: string
 }
 
 export interface Team {
@@ -79,54 +86,76 @@ const defaultRoles: Role[] = [
 
 const defaultUsers: User[] = [
   {
+    id: '0',
+    firstName: 'Admin',
+    lastName: 'User',
+    email: 'admin@company.com',
+    password: 'demo123',
+    roles: ['admin'],
+    teams: [],
+    status: 'active',
+    lastActive: 'Just now',
+    loginHistory: [],
+  },
+  {
     id: '1',
     firstName: 'John',
     lastName: 'Smith',
     email: 'john.smith@company.com',
-    roles: ['admin'],
+    password: 'demo123',
+    roles: ['project_manager'],
     teams: ['Security', 'Leadership'],
     status: 'active',
     lastActive: '2 minutes ago',
+    loginHistory: [],
   },
   {
     id: '2',
     firstName: 'Sarah',
     lastName: 'Jones',
     email: 'sarah.jones@company.com',
+    password: 'demo123',
     roles: ['project_manager'],
     teams: ['Cloud Services'],
     status: 'active',
     lastActive: '5 minutes ago',
+    loginHistory: [],
   },
   {
     id: '3',
     firstName: 'Mike',
     lastName: 'Wilson',
     email: 'mike.wilson@company.com',
+    password: 'demo123',
     roles: ['contributor'],
     teams: ['Security', 'IT Infrastructure'],
     status: 'active',
     lastActive: '1 hour ago',
+    loginHistory: [],
   },
   {
     id: '4',
     firstName: 'Emily',
     lastName: 'Chen',
     email: 'emily.chen@company.com',
+    password: 'demo123',
     roles: ['contributor'],
     teams: ['Cloud Services'],
     status: 'active',
     lastActive: '3 hours ago',
+    loginHistory: [],
   },
   {
     id: '5',
     firstName: 'David',
     lastName: 'Lee',
     email: 'david.lee@company.com',
+    password: 'demo123',
     roles: ['contributor'],
     teams: ['DevOps'],
     status: 'active',
     lastActive: '1 day ago',
+    loginHistory: [],
   },
 ]
 
@@ -172,6 +201,7 @@ interface TeamState {
   deleteUser: (id: string) => void
   toggleUserStatus: (id: string) => void
   resetUserPassword: (id: string, newPassword: string) => void
+  recordLogin: (userId: string) => void
 
   // Team actions
   addTeam: (team: Team) => void
@@ -222,6 +252,25 @@ export const useTeamStore = create<TeamState>()(
         set((state) => ({
           users: state.users.map((user) =>
             user.id === id ? { ...user, password: newPassword } : user
+          ),
+        })),
+
+      recordLogin: (userId) =>
+        set((state) => ({
+          users: state.users.map((user) =>
+            user.id === userId
+              ? {
+                  ...user,
+                  lastActive: 'Just now',
+                  loginHistory: [
+                    ...(user.loginHistory || []),
+                    {
+                      timestamp: new Date().toISOString(),
+                      userAgent: navigator.userAgent,
+                    },
+                  ].slice(-50), // Keep last 50 login events
+                }
+              : user
           ),
         })),
 

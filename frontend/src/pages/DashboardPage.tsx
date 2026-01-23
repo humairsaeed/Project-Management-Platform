@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useProjectStore, type Project } from '../store/projectSlice'
 import { useAuthStore } from '../store/authSlice'
+import UserActivityAnalytics from '../components/dashboard/UserActivityAnalytics'
 import {
   BarChart,
   Bar,
@@ -476,6 +477,9 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* User Activity Analytics - Admin Only */}
+      {hasRole('admin') && <UserActivityAnalytics />}
     </div>
   )
 }

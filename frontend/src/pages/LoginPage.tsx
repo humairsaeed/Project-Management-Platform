@@ -7,7 +7,7 @@ import api from '../services/api'
 export default function LoginPage() {
   const navigate = useNavigate()
   const login = useAuthStore((state) => state.login)
-  const { users } = useTeamStore()
+  const { users, recordLogin } = useTeamStore()
   const [email, setEmail] = useState('admin@company.com')
   const [password, setPassword] = useState('demo123')
   const [error, setError] = useState('')
@@ -34,6 +34,10 @@ export default function LoginPage() {
         },
         accessToken
       )
+
+      // Record login activity
+      recordLogin(user.id)
+
       navigate('/dashboard')
     } catch (apiError) {
       // Fallback to local user store validation
@@ -75,6 +79,10 @@ export default function LoginPage() {
           },
           'mock-jwt-token'
         )
+
+        // Record login activity
+        recordLogin(user.id)
+
         navigate('/dashboard')
       } else {
         setError('Please enter email and password')

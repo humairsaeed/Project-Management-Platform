@@ -312,6 +312,33 @@ export const useTeamStore = create<TeamState>()(
     }),
     {
       name: 'team-storage',
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        // If migrating from version 0 (or no version), add passwords to default users
+        if (version === 0) {
+          const state = persistedState as TeamState
+
+          // Update existing users with passwords if they don't have them
+          const updatedUsers = state.users.map((user) => {
+            // If user doesn't have a password, set default password
+            if (!user.password) {
+              return { ...user, password: 'demo123', loginHistory: [] }
+            }
+            // Ensure loginHistory exists
+            if (!user.loginHistory) {
+              return { ...user, loginHistory: [] }
+            }
+            return user
+          })
+
+          return {
+            ...state,
+            users: updatedUsers,
+          }
+        }
+
+        return persistedState as TeamState
+      },
     }
   )
 )

@@ -4,7 +4,7 @@ import type { AuditLogEntry } from '../projects/ProjectDetailModal'
 import Avatar from './Avatar'
 
 interface Props {
-  projectId: string
+  projectId?: string
   externalLogs?: AuditLogEntry[]
 }
 
@@ -13,8 +13,13 @@ export default function AuditTrail({ projectId, externalLogs = [] }: Props) {
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all')
   const [expandedLog, setExpandedLog] = useState<string | null>(null)
 
-  // Use only project-specific logs from the store
+  // Use only project-specific logs from the store (when projectId is provided)
+  // If no projectId, show empty logs (settings page use case - no global logs)
   const allLogs = useMemo(() => {
+    if (!projectId) {
+      // No project context - show empty (settings page)
+      return []
+    }
     // Filter logs to only show those for this project and sort by date
     return [...externalLogs]
       .filter((log) => log.recordId === projectId)

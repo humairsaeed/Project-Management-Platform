@@ -1,88 +1,30 @@
 import { useState } from 'react'
 import { Shield, Check, X, Edit2, Eye } from 'lucide-react'
-
-interface Permission {
-  create: boolean
-  read: boolean
-  update: boolean
-  delete: boolean
-}
-
-interface Role {
-  id: string
-  name: string
-  displayName: string
-  description: string
-  isSystemRole: boolean
-  permissions: {
-    projects: Permission & { archive: boolean }
-    tasks: Permission & { assign: boolean; move: boolean }
-    users: Permission & { manage_roles: boolean }
-    settings: { access: boolean; manage_roles: boolean; view_audit: boolean }
-  }
-}
-
-const mockRoles: Role[] = [
-  {
-    id: '1',
-    name: 'admin',
-    displayName: 'Administrator',
-    description: 'Full system access including user management and settings',
-    isSystemRole: true,
-    permissions: {
-      projects: { create: true, read: true, update: true, delete: true, archive: true },
-      tasks: { create: true, read: true, update: true, delete: true, assign: true, move: true },
-      users: { create: true, read: true, update: true, delete: true, manage_roles: true },
-      settings: { access: true, manage_roles: true, view_audit: true },
-    },
-  },
-  {
-    id: '2',
-    name: 'project_manager',
-    displayName: 'Project Manager',
-    description: 'Can manage projects and tasks, assign team members',
-    isSystemRole: true,
-    permissions: {
-      projects: { create: true, read: true, update: true, delete: false, archive: false },
-      tasks: { create: true, read: true, update: true, delete: true, assign: true, move: true },
-      users: { create: false, read: true, update: false, delete: false, manage_roles: false },
-      settings: { access: false, manage_roles: false, view_audit: true },
-    },
-  },
-  {
-    id: '3',
-    name: 'contributor',
-    displayName: 'Contributor',
-    description: 'Can view and update assigned tasks',
-    isSystemRole: true,
-    permissions: {
-      projects: { create: false, read: true, update: false, delete: false, archive: false },
-      tasks: { create: true, read: true, update: true, delete: false, assign: false, move: true },
-      users: { create: false, read: true, update: false, delete: false, manage_roles: false },
-      settings: { access: false, manage_roles: false, view_audit: false },
-    },
-  },
-]
+import { useTeamStore, Role } from '../../store/teamSlice'
 
 interface Props {
   isAdmin: boolean
 }
 
+const emptyPermissions = {
+  projects: { create: false, read: true, update: false, delete: false, archive: false },
+  tasks: { create: false, read: true, update: false, delete: false, assign: false, move: false },
+  users: { create: false, read: true, update: false, delete: false, manage_roles: false },
+  settings: { access: false, manage_roles: false, view_audit: false },
+}
+
 export default function RoleManager({ isAdmin }: Props) {
-  const [roles, setRoles] = useState<Role[]>(mockRoles)
+  const { roles, addRole, updateRole } = useTeamStore()
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [editingRole, setEditingRole] = useState<Role | null>(null)
   const [newRole, setNewRole] = useState<Partial<Role>>({
     name: '',
     displayName: '',
     description: '',
     isSystemRole: false,
-    permissions: {
-      projects: { create: false, read: true, update: false, delete: false, archive: false },
-      tasks: { create: false, read: true, update: false, delete: false, assign: false, move: false },
-      users: { create: false, read: true, update: false, delete: false, manage_roles: false },
-      settings: { access: false, manage_roles: false, view_audit: false },
-    },
+    permissions: emptyPermissions,
   })
 
   const handleCreateRole = () => {
@@ -97,7 +39,7 @@ export default function RoleManager({ isAdmin }: Props) {
       permissions: newRole.permissions!,
     }
 
-    setRoles([...roles, role])
+    addRole(role)
     setShowCreateDialog(false)
     setSelectedRole(role)
     // Reset form
@@ -106,11 +48,43 @@ export default function RoleManager({ isAdmin }: Props) {
       displayName: '',
       description: '',
       isSystemRole: false,
+      permissions: emptyPermissions,
+    })
+  }
+
+  const handleEditPermissions = (role: Role) => {
+    setEditingRole({ ...role })
+    setShowEditDialog(true)
+  }
+
+  const handleSavePermissions = () => {
+    if (!editingRole) return
+
+    updateRole(editingRole.id, {
+      permissions: editingRole.permissions,
+      displayName: editingRole.displayName,
+      description: editingRole.description,
+    })
+
+    setShowEditDialog(false)
+    setSelectedRole(editingRole)
+    setEditingRole(null)
+  }
+
+  const togglePermission = (
+    category: 'projects' | 'tasks' | 'users' | 'settings',
+    permission: string
+  ) => {
+    if (!editingRole) return
+
+    setEditingRole({
+      ...editingRole,
       permissions: {
-        projects: { create: false, read: true, update: false, delete: false, archive: false },
-        tasks: { create: false, read: true, update: false, delete: false, assign: false, move: false },
-        users: { create: false, read: true, update: false, delete: false, manage_roles: false },
-        settings: { access: false, manage_roles: false, view_audit: false },
+        ...editingRole.permissions,
+        [category]: {
+          ...editingRole.permissions[category],
+          [permission]: !(editingRole.permissions[category] as any)[permission],
+        },
       },
     })
   }
@@ -179,7 +153,10 @@ export default function RoleManager({ isAdmin }: Props) {
               Permissions: {selectedRole.displayName}
             </h3>
             {isAdmin && !selectedRole.isSystemRole && (
-              <button className="btn-secondary text-sm">
+              <button
+                onClick={() => handleEditPermissions(selectedRole)}
+                className="btn-secondary text-sm"
+              >
                 <Edit2 size={14} className="mr-2" />
                 Edit Permissions
               </button>
@@ -341,6 +318,273 @@ export default function RoleManager({ isAdmin }: Props) {
                 className="flex-1 px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
               >
                 Create Role
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Permissions Dialog */}
+      {showEditDialog && editingRole && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => {
+              setShowEditDialog(false)
+              setEditingRole(null)
+            }}
+          />
+          <div className="relative bg-slate-800/95 backdrop-blur-xl border border-slate-600/50 rounded-xl shadow-2xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-semibold text-white mb-4">
+              Edit Permissions: {editingRole.displayName}
+            </h3>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Display Name</label>
+                <input
+                  type="text"
+                  value={editingRole.displayName}
+                  onChange={(e) =>
+                    setEditingRole({ ...editingRole, displayName: e.target.value })
+                  }
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Description</label>
+                <textarea
+                  value={editingRole.description}
+                  onChange={(e) =>
+                    setEditingRole({ ...editingRole, description: e.target.value })
+                  }
+                  rows={2}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500 resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Permissions Matrix */}
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-white mb-3">Permissions</h4>
+              <div className="space-y-4">
+                {/* Projects Permissions */}
+                <div className="bg-slate-700/50 rounded-lg p-4">
+                  <h5 className="text-sm font-medium text-white mb-3">Projects</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.projects.create}
+                        onChange={() => togglePermission('projects', 'create')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Create</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.projects.read}
+                        onChange={() => togglePermission('projects', 'read')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Read</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.projects.update}
+                        onChange={() => togglePermission('projects', 'update')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Update</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.projects.delete}
+                        onChange={() => togglePermission('projects', 'delete')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Delete</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.projects.archive}
+                        onChange={() => togglePermission('projects', 'archive')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Archive</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Tasks Permissions */}
+                <div className="bg-slate-700/50 rounded-lg p-4">
+                  <h5 className="text-sm font-medium text-white mb-3">Tasks</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.tasks.create}
+                        onChange={() => togglePermission('tasks', 'create')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Create</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.tasks.read}
+                        onChange={() => togglePermission('tasks', 'read')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Read</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.tasks.update}
+                        onChange={() => togglePermission('tasks', 'update')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Update</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.tasks.delete}
+                        onChange={() => togglePermission('tasks', 'delete')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Delete</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.tasks.assign}
+                        onChange={() => togglePermission('tasks', 'assign')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Assign</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.tasks.move}
+                        onChange={() => togglePermission('tasks', 'move')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Move</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Users Permissions */}
+                <div className="bg-slate-700/50 rounded-lg p-4">
+                  <h5 className="text-sm font-medium text-white mb-3">Users</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.users.create}
+                        onChange={() => togglePermission('users', 'create')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Create</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.users.read}
+                        onChange={() => togglePermission('users', 'read')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Read</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.users.update}
+                        onChange={() => togglePermission('users', 'update')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Update</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.users.delete}
+                        onChange={() => togglePermission('users', 'delete')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Delete</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.users.manage_roles}
+                        onChange={() => togglePermission('users', 'manage_roles')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Manage Roles</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Settings Permissions */}
+                <div className="bg-slate-700/50 rounded-lg p-4">
+                  <h5 className="text-sm font-medium text-white mb-3">Settings</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.settings.access}
+                        onChange={() => togglePermission('settings', 'access')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Access</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.settings.manage_roles}
+                        onChange={() => togglePermission('settings', 'manage_roles')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">Manage Roles</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingRole.permissions.settings.view_audit}
+                        onChange={() => togglePermission('settings', 'view_audit')}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">View Audit</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setShowEditDialog(false)
+                  setEditingRole(null)
+                }}
+                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSavePermissions}
+                className="flex-1 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Save Changes
               </button>
             </div>
           </div>

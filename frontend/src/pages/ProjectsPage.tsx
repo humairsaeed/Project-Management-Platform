@@ -27,6 +27,7 @@ import {
 import { useProjectStore, type Project, type RiskLevel, type Priority, type ProjectStatus } from '../store/projectSlice'
 import ProjectDetailModal from '../components/projects/ProjectDetailModal'
 import Avatar from '../components/common/Avatar'
+import { useAuthStore } from '../store/authSlice'
 
 type TabType = 'active' | 'completed' | 'upcoming' | 'on_hold' | 'cancelled' | 'deleted'
 type SortType = 'custom' | 'date_asc' | 'date_desc' | 'name_asc' | 'name_desc'
@@ -35,6 +36,7 @@ const teamOptions = ['Security', 'Cloud Services', 'IT Infrastructure', 'DevOps'
 const managerOptions = ['John Smith', 'Sarah Jones', 'Mike Wilson', 'Emily Chen', 'David Lee']
 
 export default function ProjectsPage() {
+  const { user, hasRole } = useAuthStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState<TabType>('active')
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
@@ -90,6 +92,17 @@ export default function ProjectsPage() {
     return Array.from(yearsSet).sort((a, b) => a - b)
   }, [projects])
 
+  // Helper function to check if user is assigned to any tasks in a project
+  const userHasTasksInProject = (project: Project) => {
+    if (!user) return false
+    const userName = `${user.firstName} ${user.lastName}`
+    return project.tasks.some((task) =>
+      task.assignees.some(
+        (assignee: string) => assignee.toLowerCase() === userName.toLowerCase()
+      )
+    )
+  }
+
   // Filter projects by search term and date filters (excluding deleted)
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
@@ -109,9 +122,14 @@ export default function ProjectsPage() {
       const matchesYear = yearFilter === 'all' || deadlineYear === yearFilter
       const matchesMonth = monthFilter === 'all' || deadlineMonth === monthFilter
 
+      // For Contributors and Project Managers, only show projects where they have tasks assigned
+      if (!hasRole('admin')) {
+        if (!userHasTasksInProject(project)) return false
+      }
+
       return matchesSearch && matchesYear && matchesMonth
     })
-  }, [projects, searchTerm, yearFilter, monthFilter])
+  }, [projects, searchTerm, yearFilter, monthFilter, user, hasRole])
 
   // Sort projects
   const sortedProjects = useMemo(() => {

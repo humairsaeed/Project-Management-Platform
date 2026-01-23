@@ -12,7 +12,8 @@ import {
   Users,
   Calendar,
 } from 'lucide-react'
-import { useProjectStore } from '../store/projectSlice'
+import { useProjectStore, type Project } from '../store/projectSlice'
+import { useAuthStore } from '../store/authSlice'
 import {
   BarChart,
   Bar,
@@ -31,8 +32,20 @@ import {
 
 export default function DashboardPage() {
   const { projects } = useProjectStore()
+  const { user, hasRole } = useAuthStore()
   const [yearFilter, setYearFilter] = useState<string>('all')
   const [monthFilter, setMonthFilter] = useState<string>('all')
+
+  // Helper function to check if user is assigned to any tasks in a project
+  const userHasTasksInProject = (project: Project) => {
+    if (!user) return false
+    const userName = `${user.firstName} ${user.lastName}`
+    return project.tasks.some((task) =>
+      task.assignees.some(
+        (assignee: string) => assignee.toLowerCase() === userName.toLowerCase()
+      )
+    )
+  }
 
   // Get years that have projects
   const projectYears = useMemo(() => {
@@ -75,9 +88,14 @@ export default function DashboardPage() {
       const matchesYear = yearFilter === 'all' || deadlineYear === yearFilter
       const matchesMonth = monthFilter === 'all' || deadlineMonth === monthFilter
 
+      // For Contributors and Project Managers, only show projects where they have tasks assigned
+      if (!hasRole('admin')) {
+        if (!userHasTasksInProject(project)) return false
+      }
+
       return matchesYear && matchesMonth
     })
-  }, [projects, yearFilter, monthFilter])
+  }, [projects, yearFilter, monthFilter, user, hasRole])
 
   // Calculate counts
   const totalProjects = filteredProjects.length

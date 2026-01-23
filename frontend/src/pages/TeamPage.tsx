@@ -9,91 +9,25 @@ import {
   Trash2,
   UserX,
   Check,
+  Edit2,
+  Key,
 } from 'lucide-react'
 import Avatar from '../components/common/Avatar'
-
-interface User {
-  id: string
-  firstName: string
-  lastName: string
-  email: string
-  roles: string[]
-  teams: string[]
-  status: 'active' | 'inactive'
-  lastActive: string
-}
-
-interface Team {
-  id: string
-  name: string
-  description: string
-  members: string[]
-  lead: string
-}
-
-const mockUsers: User[] = [
-  {
-    id: '1',
-    firstName: 'John',
-    lastName: 'Smith',
-    email: 'john.smith@company.com',
-    roles: ['admin'],
-    teams: ['Security', 'Leadership'],
-    status: 'active',
-    lastActive: '2 minutes ago',
-  },
-  {
-    id: '2',
-    firstName: 'Sarah',
-    lastName: 'Jones',
-    email: 'sarah.jones@company.com',
-    roles: ['project_manager'],
-    teams: ['Cloud Services'],
-    status: 'active',
-    lastActive: '5 minutes ago',
-  },
-  {
-    id: '3',
-    firstName: 'Mike',
-    lastName: 'Wilson',
-    email: 'mike.wilson@company.com',
-    roles: ['contributor'],
-    teams: ['Security', 'IT Infrastructure'],
-    status: 'active',
-    lastActive: '1 hour ago',
-  },
-]
-
-const mockTeams: Team[] = [
-  {
-    id: 't1',
-    name: 'Security',
-    description: 'Security and compliance team',
-    members: ['1', '3'],
-    lead: '1',
-  },
-  {
-    id: 't2',
-    name: 'Cloud Services',
-    description: 'Cloud infrastructure and services',
-    members: ['2'],
-    lead: '2',
-  },
-]
+import { useTeamStore, User, Team } from '../store/teamSlice'
 
 type TabType = 'users' | 'teams'
 
 export default function TeamPage() {
+  const { users, teams, addUser, deleteUser, toggleUserStatus, addTeam, updateTeam, deleteTeam } = useTeamStore()
   const [activeTab, setActiveTab] = useState<TabType>('users')
   const [searchTerm, setSearchTerm] = useState('')
-  const [users, setUsers] = useState<User[]>(mockUsers)
-  const [teams, setTeams] = useState<Team[]>(mockTeams)
   const [showAddUserDialog, setShowAddUserDialog] = useState(false)
   const [showAddTeamDialog, setShowAddTeamDialog] = useState(false)
   const [newUser, setNewUser] = useState({
     firstName: '',
     lastName: '',
     email: '',
+    password: '',
     roles: ['contributor'] as string[],
     teams: [] as string[],
   })
@@ -103,6 +37,18 @@ export default function TeamPage() {
     lead: '',
     members: [] as string[],
   })
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null)
+  const [showEditTeamDialog, setShowEditTeamDialog] = useState(false)
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  const [passwordUserId, setPasswordUserId] = useState<string | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [teamMenuOpen, setTeamMenuOpen] = useState<string | null>(null)
+
+  // Helper function to get team name from ID
+  const getTeamName = (teamId: string) => {
+    const team = teams.find((t) => t.id === teamId)
+    return team?.name || teamId
+  }
 
   const filteredUsers = users.filter(
     (user) =>
@@ -118,25 +64,27 @@ export default function TeamPage() {
   )
 
   const handleAddUser = () => {
-    if (!newUser.firstName || !newUser.lastName || !newUser.email) return
+    if (!newUser.firstName || !newUser.lastName || !newUser.email || !newUser.password) return
 
     const user: User = {
       id: `u${Date.now()}`,
       firstName: newUser.firstName,
       lastName: newUser.lastName,
       email: newUser.email,
+      password: newUser.password,
       roles: newUser.roles,
       teams: newUser.teams,
       status: 'active',
       lastActive: 'Just now',
     }
 
-    setUsers([...users, user])
+    addUser(user)
     setShowAddUserDialog(false)
     setNewUser({
       firstName: '',
       lastName: '',
       email: '',
+      password: '',
       roles: ['contributor'],
       teams: [],
     })
@@ -153,7 +101,7 @@ export default function TeamPage() {
       lead: newTeam.lead,
     }
 
-    setTeams([...teams, team])
+    addTeam(team)
     setShowAddTeamDialog(false)
     setNewTeam({
       name: '',
@@ -164,15 +112,56 @@ export default function TeamPage() {
   }
 
   const handleDeleteUser = (userId: string) => {
-    setUsers(users.filter((u) => u.id !== userId))
+    if (confirm('Are you sure you want to delete this user?')) {
+      deleteUser(userId)
+    }
   }
 
   const handleToggleUserStatus = (userId: string) => {
-    setUsers(
-      users.map((u) =>
-        u.id === userId ? { ...u, status: u.status === 'active' ? 'inactive' : 'active' } : u
-      )
-    )
+    toggleUserStatus(userId)
+  }
+
+  const handleEditTeam = (team: Team) => {
+    setEditingTeam({ ...team })
+    setShowEditTeamDialog(true)
+    setTeamMenuOpen(null)
+  }
+
+  const handleSaveTeam = () => {
+    if (!editingTeam) return
+
+    updateTeam(editingTeam.id, {
+      name: editingTeam.name,
+      description: editingTeam.description,
+      lead: editingTeam.lead,
+      members: editingTeam.members,
+    })
+
+    setShowEditTeamDialog(false)
+    setEditingTeam(null)
+  }
+
+  const handleDeleteTeam = (teamId: string) => {
+    if (confirm('Are you sure you want to delete this team?')) {
+      deleteTeam(teamId)
+      setTeamMenuOpen(null)
+    }
+  }
+
+  const handleResetPassword = (userId: string) => {
+    setPasswordUserId(userId)
+    setShowPasswordDialog(true)
+  }
+
+  const handleSavePassword = () => {
+    if (!passwordUserId || !newPassword) return
+
+    const { resetUserPassword } = useTeamStore.getState()
+    resetUserPassword(passwordUserId, newPassword)
+
+    setShowPasswordDialog(false)
+    setPasswordUserId(null)
+    setNewPassword('')
   }
 
   const getRoleBadgeColor = (role: string) => {
@@ -331,17 +320,24 @@ export default function TeamPage() {
                         {getRoleLabel(role)}
                       </span>
                     ))}
-                    {user.teams.map((team) => (
+                    {user.teams.map((teamId) => (
                       <span
-                        key={team}
+                        key={teamId}
                         className="px-2 py-1 rounded text-xs bg-slate-700 text-slate-300"
                       >
-                        {team}
+                        {getTeamName(teamId)}
                       </span>
                     ))}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleResetPassword(user.id)}
+                    className="p-2 rounded-lg hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 transition-colors"
+                    title="Reset Password"
+                  >
+                    <Key size={18} />
+                  </button>
                   <button
                     onClick={() => handleToggleUserStatus(user.id)}
                     className={`p-2 rounded-lg transition-colors ${
@@ -386,9 +382,34 @@ export default function TeamPage() {
                     <h3 className="text-white font-medium mb-1">{team.name}</h3>
                     <p className="text-sm text-slate-400">{team.description}</p>
                   </div>
-                  <button className="p-1.5 rounded hover:bg-slate-700 text-slate-400">
-                    <MoreVertical size={16} />
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() =>
+                        setTeamMenuOpen(teamMenuOpen === team.id ? null : team.id)
+                      }
+                      className="p-1.5 rounded hover:bg-slate-700 text-slate-400"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {teamMenuOpen === team.id && (
+                      <div className="absolute right-0 mt-2 w-40 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-10">
+                        <button
+                          onClick={() => handleEditTeam(team)}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-slate-600 rounded-t-lg transition-colors"
+                        >
+                          <Edit2 size={14} />
+                          Edit Team
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTeam(team.id)}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-slate-600 rounded-b-lg transition-colors"
+                        >
+                          <Trash2 size={14} />
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {teamLead && (
@@ -460,6 +481,17 @@ export default function TeamPage() {
               </div>
 
               <div>
+                <label className="text-sm text-slate-400 block mb-2">Initial Password *</label>
+                <input
+                  type="password"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  placeholder="Enter initial password"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
+                />
+              </div>
+
+              <div>
                 <label className="text-sm text-slate-400 block mb-2">Role *</label>
                 <select
                   value={newUser.roles[0]}
@@ -482,7 +514,7 @@ export default function TeamPage() {
               </button>
               <button
                 onClick={handleAddUser}
-                disabled={!newUser.firstName || !newUser.lastName || !newUser.email}
+                disabled={!newUser.firstName || !newUser.lastName || !newUser.email || !newUser.password}
                 className="flex-1 px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
               >
                 Add User
@@ -553,6 +585,164 @@ export default function TeamPage() {
                 className="flex-1 px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
               >
                 Create Team
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Reset Dialog */}
+      {showPasswordDialog && passwordUserId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => {
+              setShowPasswordDialog(false)
+              setPasswordUserId(null)
+              setNewPassword('')
+            }}
+          />
+          <div className="relative bg-slate-800/95 backdrop-blur-xl border border-slate-600/50 rounded-xl shadow-2xl p-6 w-full max-w-md animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-semibold text-white mb-4">Reset Password</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">New Password *</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowPasswordDialog(false)
+                  setPasswordUserId(null)
+                  setNewPassword('')
+                }}
+                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSavePassword}
+                disabled={!newPassword}
+                className="flex-1 px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Reset Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Team Dialog */}
+      {showEditTeamDialog && editingTeam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => {
+              setShowEditTeamDialog(false)
+              setEditingTeam(null)
+            }}
+          />
+          <div className="relative bg-slate-800/95 backdrop-blur-xl border border-slate-600/50 rounded-xl shadow-2xl p-6 w-full max-w-lg animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-semibold text-white mb-4">Edit Team</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Team Name *</label>
+                <input
+                  type="text"
+                  value={editingTeam.name}
+                  onChange={(e) => setEditingTeam({ ...editingTeam, name: e.target.value })}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Description</label>
+                <textarea
+                  value={editingTeam.description}
+                  onChange={(e) => setEditingTeam({ ...editingTeam, description: e.target.value })}
+                  rows={2}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Team Lead *</label>
+                <select
+                  value={editingTeam.lead}
+                  onChange={(e) => setEditingTeam({ ...editingTeam, lead: e.target.value })}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
+                >
+                  <option value="">Select a team lead...</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.firstName} {user.lastName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Team Members</label>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {users.map((user) => (
+                    <label
+                      key={user.id}
+                      className="flex items-center gap-2 p-2 rounded hover:bg-slate-700 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={editingTeam.members.includes(user.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEditingTeam({
+                              ...editingTeam,
+                              members: [...editingTeam.members, user.id],
+                            })
+                          } else {
+                            setEditingTeam({
+                              ...editingTeam,
+                              members: editingTeam.members.filter((id) => id !== user.id),
+                            })
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-slate-300">
+                        {user.firstName} {user.lastName}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditTeamDialog(false)
+                  setEditingTeam(null)
+                }}
+                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveTeam}
+                disabled={!editingTeam.name || !editingTeam.lead}
+                className="flex-1 px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Save Changes
               </button>
             </div>
           </div>

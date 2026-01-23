@@ -30,8 +30,16 @@ export default function MyTasksPage() {
     }> = []
 
     projects.forEach((project) => {
+      // Skip deleted projects
+      if (project.isDeleted) return
+
       project.tasks.forEach((task) => {
-        if (task.assignees.includes(userName)) {
+        // Check if user is assigned to this task (case-insensitive comparison)
+        const isAssigned = task.assignees.some(
+          (assignee: string) => assignee.toLowerCase() === userName.toLowerCase()
+        )
+
+        if (isAssigned) {
           allTasks.push({
             task,
             projectId: project.id,

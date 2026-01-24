@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Calendar,
   User,
@@ -20,6 +20,7 @@ import AuditTrail from '../common/AuditTrail'
 import Avatar, { AvatarGroup } from '../common/Avatar'
 import { useProjectStore, type TaskWithAssignees as StoreTaskWithAssignees, type RiskLevel, type ProjectStatus, type Priority, type AuditLogEntry } from '../../store/projectSlice'
 import { useAuthStore } from '../../store/authSlice'
+import { useTeamStore } from '../../store/teamSlice'
 
 interface ProjectDetailModalProps {
   project: {
@@ -37,15 +38,6 @@ interface ProjectDetailModalProps {
   onClose: () => void
   onDelete?: (projectId: string, reason: string) => void
 }
-
-// Available team members for assignment
-export const teamMembers = [
-  { id: 'u1', name: 'John Smith' },
-  { id: 'u2', name: 'Sarah Jones' },
-  { id: 'u3', name: 'Mike Wilson' },
-  { id: 'u4', name: 'Emily Chen' },
-  { id: 'u5', name: 'David Lee' },
-]
 
 export interface TaskComment {
   id: string
@@ -91,6 +83,23 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
 
   // Get current user and permissions
   const { user, hasRole } = useAuthStore()
+  const { users, teams } = useTeamStore()
+
+  const teamMembers = useMemo(() => {
+    return users
+      .filter((u) => u.status === 'active')
+      .map((u) => ({
+        id: u.id,
+        name: `${u.firstName} ${u.lastName}`.trim(),
+      }))
+  }, [users])
+
+  const teamOptions = useMemo(() => {
+    return teams
+      .map((team) => team.name)
+      .filter((name): name is string => Boolean(name))
+      .sort((a, b) => a.localeCompare(b))
+  }, [teams])
 
   // Local tasks state initialized from store
   const [tasks, setTasks] = useState<TaskWithAssignees[]>(
@@ -729,11 +738,17 @@ function OverviewTab({
                   className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-primary-500"
                 >
                   <option value="">Not assigned</option>
-                  <option value="John Smith">John Smith</option>
-                  <option value="Sarah Jones">Sarah Jones</option>
-                  <option value="Mike Wilson">Mike Wilson</option>
-                  <option value="Emily Chen">Emily Chen</option>
-                  <option value="David Lee">David Lee</option>
+                  {teamMembers.length > 0 ? (
+                    teamMembers.map((member) => (
+                      <option key={member.id} value={member.name}>
+                        {member.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      No active users
+                    </option>
+                  )}
                 </select>
               ) : (
                 <span className="text-white">{project.manager || 'Not assigned'}</span>
@@ -750,11 +765,17 @@ function OverviewTab({
                   className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-primary-500"
                 >
                   <option value="">Not assigned</option>
-                  <option value="Security">Security</option>
-                  <option value="Cloud Services">Cloud Services</option>
-                  <option value="IT Infrastructure">IT Infrastructure</option>
-                  <option value="DevOps">DevOps</option>
-                  <option value="Engineering">Engineering</option>
+                  {teamOptions.length > 0 ? (
+                    teamOptions.map((team) => (
+                      <option key={team} value={team}>
+                        {team}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      No teams available
+                    </option>
+                  )}
                 </select>
               ) : (
                 <span className="text-white">{project.team || 'Not assigned'}</span>

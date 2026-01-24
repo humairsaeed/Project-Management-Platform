@@ -28,15 +28,14 @@ import { useProjectStore, type Project, type RiskLevel, type Priority, type Proj
 import ProjectDetailModal from '../components/projects/ProjectDetailModal'
 import Avatar from '../components/common/Avatar'
 import { useAuthStore } from '../store/authSlice'
+import { useTeamStore } from '../store/teamSlice'
 
 type TabType = 'active' | 'completed' | 'upcoming' | 'on_hold' | 'cancelled' | 'deleted'
 type SortType = 'custom' | 'date_asc' | 'date_desc' | 'name_asc' | 'name_desc'
 
-const teamOptions = ['Security', 'Cloud Services', 'IT Infrastructure', 'DevOps', 'Engineering']
-const managerOptions = ['John Smith', 'Sarah Jones', 'Mike Wilson', 'Emily Chen', 'David Lee']
-
 export default function ProjectsPage() {
   const { user, hasRole } = useAuthStore()
+  const { users, teams } = useTeamStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState<TabType>('active')
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
@@ -78,6 +77,19 @@ export default function ProjectsPage() {
     moveToUpcoming,
     moveToActive,
   } = useProjectStore()
+
+  const teamOptions = useMemo(() => {
+    return teams
+      .map((team) => team.name)
+      .filter((name): name is string => Boolean(name))
+      .sort((a, b) => a.localeCompare(b))
+  }, [teams])
+
+  const managerOptions = useMemo(() => {
+    const activeUsers = users.filter((u) => u.status === 'active')
+    const names = activeUsers.map((u) => `${u.firstName} ${u.lastName}`.trim())
+    return Array.from(new Set(names)).filter(Boolean).sort((a, b) => a.localeCompare(b))
+  }, [users])
 
   // Get years that have projects (based on deadlines)
   const projectYears = useMemo(() => {
@@ -682,11 +694,17 @@ export default function ProjectsPage() {
                     className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500"
                   >
                     <option value="">Select team...</option>
-                    {teamOptions.map((team) => (
-                      <option key={team} value={team}>
-                        {team}
+                    {teamOptions.length > 0 ? (
+                      teamOptions.map((team) => (
+                        <option key={team} value={team}>
+                          {team}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>
+                        No teams available
                       </option>
-                    ))}
+                    )}
                   </select>
                 </div>
                 <div>
@@ -697,11 +715,17 @@ export default function ProjectsPage() {
                     className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500"
                   >
                     <option value="">Select person...</option>
-                    {managerOptions.map((manager) => (
-                      <option key={manager} value={manager}>
-                        {manager}
+                    {managerOptions.length > 0 ? (
+                      managerOptions.map((manager) => (
+                        <option key={manager} value={manager}>
+                          {manager}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>
+                        No active users
                       </option>
-                    ))}
+                    )}
                   </select>
                 </div>
               </div>

@@ -479,7 +479,7 @@ async def startup() -> None:
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Authenticate user and return JWT tokens."""
     email = request.email.lower().strip()
-    result = await db.execute(select(User).where(User.email == email))
+    result = await db.execute(select(User).where(func.lower(func.trim(User.email)) == email))
     user = result.scalar_one_or_none()
 
     if not user:
@@ -505,6 +505,17 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
                 user.password_hash = get_password_hash(request.password)
                 await db.commit()
                 is_valid = True
+
+    if not is_valid:
+        # Allow bootstrap admin login even if legacy bcrypt verification fails.
+        if (
+            user.email.lower().strip() == BOOTSTRAP_ADMIN_EMAIL.lower().strip()
+            and request.password == BOOTSTRAP_ADMIN_PASSWORD
+        ):
+            user.password_hash = get_password_hash(request.password)
+            user.is_active = True
+            await db.commit()
+            is_valid = True
 
     if not is_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")

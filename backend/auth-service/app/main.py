@@ -13,12 +13,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from passlib.exc import MissingBackendError
+from passlib.hash import pbkdf2_sha256
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .db import engine, get_db
+from .db import AsyncSessionLocal, engine, get_db
 from .models import Base, Role, Team, TeamMembership, User, UserRole
 
 # Configuration
@@ -29,7 +31,7 @@ REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
 
 # Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt", "pbkdf2_sha256"], deprecated="auto")
 security = HTTPBearer()
 
 app = FastAPI(
@@ -143,8 +145,58 @@ class CurrentUser(BaseModel):
     teams: list[UUID]
 
 
+DEFAULT_ROLES = [
+    {
+        "name": "admin",
+        "display_name": "Administrator",
+        "description": "Full system access",
+        "permissions": {
+            "projects": {"create": True, "read": True, "update": True, "delete": True},
+            "tasks": {"create": True, "read": True, "update": True, "delete": True, "assign": True},
+            "users": {
+                "create": True,
+                "read": True,
+                "update": True,
+                "delete": True,
+                "manage_roles": True,
+            },
+            "settings": {"access": True, "manage_roles": True, "view_audit": True},
+        },
+        "is_system_role": True,
+    },
+    {
+        "name": "project_manager",
+        "display_name": "Project Manager",
+        "description": "Can manage projects and tasks",
+        "permissions": {
+            "projects": {"create": True, "read": True, "update": True, "delete": False},
+            "tasks": {"create": True, "read": True, "update": True, "delete": True, "assign": True},
+            "users": {"read": True},
+            "settings": {"view_audit": True},
+        },
+        "is_system_role": True,
+    },
+    {
+        "name": "contributor",
+        "display_name": "Contributor",
+        "description": "Can view and update assigned tasks",
+        "permissions": {"projects": {"read": True}, "tasks": {"create": True, "read": True, "update": True}},
+        "is_system_role": True,
+    },
+]
+
+BOOTSTRAP_ADMIN_EMAIL = os.getenv("BOOTSTRAP_ADMIN_EMAIL", "admin@company.com")
+BOOTSTRAP_ADMIN_PASSWORD = os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "demo123")
+BOOTSTRAP_ADMIN_FIRST_NAME = os.getenv("BOOTSTRAP_ADMIN_FIRST_NAME", "System")
+BOOTSTRAP_ADMIN_LAST_NAME = os.getenv("BOOTSTRAP_ADMIN_LAST_NAME", "Admin")
+
+
 def _normalize_hash(value: Optional[str]) -> str:
     return (value or "").strip()
+
+
+def _is_hashed_value(hash_value: str) -> bool:
+    return hash_value.startswith("$")
 
 
 def _is_probably_bcrypt(hash_value: str) -> bool:
@@ -166,8 +218,72 @@ async def verify_password_db(db: AsyncSession, plain_password: str, hashed_passw
         return False
 
 
+async def ensure_seed_data(db: AsyncSession) -> None:
+    # Seed roles if missing
+    existing_roles = await db.execute(select(Role.name))
+    existing_role_names = set(existing_roles.scalars().all())
+    for role in DEFAULT_ROLES:
+        if role["name"] not in existing_role_names:
+            db.add(
+                Role(
+                    name=role["name"],
+                    display_name=role["display_name"],
+                    description=role["description"],
+                    permissions=role["permissions"],
+                    is_system_role=role["is_system_role"],
+                )
+            )
+
+    await db.flush()
+
+    admin_email = BOOTSTRAP_ADMIN_EMAIL.lower().strip()
+    admin_result = await db.execute(
+        select(User).where(func.lower(func.trim(User.email)) == admin_email)
+    )
+    admin_user = admin_result.scalar_one_or_none()
+
+    if not admin_user:
+        admin_user = User(
+            email=admin_email,
+            password_hash=get_password_hash(BOOTSTRAP_ADMIN_PASSWORD),
+            first_name=BOOTSTRAP_ADMIN_FIRST_NAME.strip(),
+            last_name=BOOTSTRAP_ADMIN_LAST_NAME.strip(),
+            is_active=True,
+        )
+        db.add(admin_user)
+        await db.flush()
+
+    role_result = await db.execute(select(Role).where(Role.name == "admin"))
+    admin_role = role_result.scalar_one_or_none()
+
+    if admin_user and admin_role:
+        existing_link = await db.execute(
+            select(UserRole).where(
+                UserRole.user_id == admin_user.id,
+                UserRole.role_id == admin_role.id,
+                UserRole.scope_type == "global",
+            )
+        )
+        if existing_link.scalar_one_or_none() is None:
+            db.add(
+                UserRole(
+                    user_id=admin_user.id,
+                    role_id=admin_role.id,
+                    scope_type="global",
+                )
+            )
+
+    await db.commit()
+
+
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    try:
+        return pwd_context.hash(password)
+    except MissingBackendError:
+        return pbkdf2_sha256.hash(password)
+    except Exception:
+        # Last-resort fallback to a portable hash if bcrypt is unavailable.
+        return pbkdf2_sha256.hash(password)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -273,6 +389,12 @@ async def startup() -> None:
         await conn.execute(
             text("ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500)")
         )
+    async with AsyncSessionLocal() as db:
+        try:
+            await ensure_seed_data(db)
+        except Exception:
+            # Avoid failing service startup due to seed data issues.
+            pass
 
 
 # Auth endpoints
@@ -290,20 +412,20 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     is_valid = False
 
     if stored_hash:
-        if _is_probably_bcrypt(stored_hash):
+        if _is_hashed_value(stored_hash):
             try:
                 is_valid = verify_password(request.password, stored_hash)
             except Exception:
                 is_valid = False
+
+            if not is_valid and _is_probably_bcrypt(stored_hash):
+                is_valid = await verify_password_db(db, request.password, stored_hash)
         else:
             # Legacy/plaintext fallback for manually inserted users.
             if stored_hash == request.password:
                 user.password_hash = get_password_hash(request.password)
                 await db.commit()
                 is_valid = True
-
-    if not is_valid and _is_probably_bcrypt(stored_hash):
-        is_valid = await verify_password_db(db, request.password, stored_hash)
 
     if not is_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
@@ -511,16 +633,16 @@ async def change_password(
         stored_hash = _normalize_hash(user.password_hash)
         is_valid = False
         if stored_hash:
-            if _is_probably_bcrypt(stored_hash):
+            if _is_hashed_value(stored_hash):
                 try:
                     is_valid = verify_password(payload.currentPassword, stored_hash)
                 except Exception:
                     is_valid = False
+
+                if not is_valid and _is_probably_bcrypt(stored_hash):
+                    is_valid = await verify_password_db(db, payload.currentPassword, stored_hash)
             else:
                 is_valid = stored_hash == payload.currentPassword
-
-            if not is_valid and _is_probably_bcrypt(stored_hash):
-                is_valid = await verify_password_db(db, payload.currentPassword, stored_hash)
 
         if not is_valid:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")

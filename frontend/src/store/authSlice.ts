@@ -90,16 +90,16 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      version: 1,
+      version: 2,
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
         isAuthenticated: state.isAuthenticated,
       }),
       migrate: (persistedState: any, version: number) => {
-        // Migration to version 1: PRODUCTION RESET - Force logout all sessions
-        if (version === 0) {
-          console.log('Migrating auth to production version 1: Forcing logout')
+        // Migration to version 2: Force logout to sync with backend database
+        if (version < 2) {
+          console.log(`Migrating auth from version ${version} to version 2: Forcing logout to sync with backend`)
           return {
             user: null,
             accessToken: null,

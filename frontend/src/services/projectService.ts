@@ -81,7 +81,6 @@ export const projectService = {
     const response = await api.post(`/projects/${projectId}/assignments`, {
       user_id: userId,
       role,
-      project_id: projectId,
       assigned_by: assignedBy,
     })
     return response.data
@@ -119,10 +118,7 @@ export const projectService = {
    * Create a task
    */
   async createTask(projectId: string, task: any): Promise<any> {
-    const response = await api.post(`/projects/${projectId}/tasks`, {
-      ...task,
-      project_id: projectId,
-    })
+    const response = await api.post(`/projects/${projectId}/tasks`, task)
     return response.data
   },
 
@@ -158,10 +154,7 @@ export const projectService = {
    * Create a milestone
    */
   async createMilestone(projectId: string, milestone: any): Promise<any> {
-    const response = await api.post(`/projects/${projectId}/milestones`, {
-      ...milestone,
-      project_id: projectId,
-    })
+    const response = await api.post(`/projects/${projectId}/milestones`, milestone)
     return response.data
   },
 

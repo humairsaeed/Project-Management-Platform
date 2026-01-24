@@ -207,6 +207,22 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
+def verify_password_bcrypt_direct(plain_password: str, hashed_password: str) -> bool:
+    if not _is_probably_bcrypt(hashed_password):
+        return False
+    try:
+        import bcrypt  # type: ignore
+    except Exception:
+        return False
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"),
+            hashed_password.encode("utf-8"),
+        )
+    except Exception:
+        return False
+
+
 async def verify_password_db(db: AsyncSession, plain_password: str, hashed_password: str) -> bool:
     try:
         result = await db.execute(
@@ -418,6 +434,8 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
             except Exception:
                 is_valid = False
 
+            if not is_valid and _is_probably_bcrypt(stored_hash):
+                is_valid = verify_password_bcrypt_direct(request.password, stored_hash)
             if not is_valid and _is_probably_bcrypt(stored_hash):
                 is_valid = await verify_password_db(db, request.password, stored_hash)
         else:
@@ -639,6 +657,8 @@ async def change_password(
                 except Exception:
                     is_valid = False
 
+                if not is_valid and _is_probably_bcrypt(stored_hash):
+                    is_valid = verify_password_bcrypt_direct(payload.currentPassword, stored_hash)
                 if not is_valid and _is_probably_bcrypt(stored_hash):
                     is_valid = await verify_password_db(db, payload.currentPassword, stored_hash)
             else:

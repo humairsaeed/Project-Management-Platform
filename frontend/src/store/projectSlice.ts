@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import projectService from '../services/projectService'
+import { useTeamStore } from './teamSlice'
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
 export type ProjectStatus = 'active' | 'completed' | 'on_hold' | 'planning' | 'cancelled'
@@ -52,7 +53,9 @@ export interface Project {
   daysUntilDeadline: number
   priority: Priority
   manager: string
+  managerId?: string
   team: string
+  teamId?: string
   tasks: TaskWithAssignees[]
   auditLogs?: AuditLogEntry[] // Per-project audit history
   completedAt?: string // When project was marked as complete
@@ -119,6 +122,9 @@ export const useProjectStore = create<ProjectState>()(
 
       addProject: async (project, currentUserId) => {
         try {
+          const managerId = project.managerId || currentUserId || null
+          const teamId = project.teamId || null
+
           // Transform frontend format to backend format
           const backendPayload: any = {
             name: project.name,
@@ -127,8 +133,8 @@ export const useProjectStore = create<ProjectState>()(
             priority: project.priority || 'medium',
             risk_level: project.riskLevel || 'low',
             completion_percentage: 0,
-            manager_user_id: currentUserId, // Use the logged-in user as manager
-            owner_team_id: project.team && project.team !== 'General' ? project.team : null,
+            manager_user_id: managerId,
+            owner_team_id: teamId,
             target_start_date: null,
             target_end_date: project.daysUntilDeadline
               ? new Date(Date.now() + project.daysUntilDeadline * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -143,7 +149,8 @@ export const useProjectStore = create<ProjectState>()(
             projects: [{
               ...project,
               id: createdProject.id,
-              manager: currentUserId || project.manager,
+              managerId: managerId || undefined,
+              teamId: teamId || undefined,
             }, ...state.projects],
           }))
 
@@ -361,6 +368,20 @@ export const useProjectStore = create<ProjectState>()(
             return
           }
 
+          const { users, teams } = useTeamStore.getState()
+          const resolveUserName = (id?: string) => {
+            if (!id) return ''
+            const match = users.find((u) => u.id === id)
+            return match ? `${match.firstName} ${match.lastName}`.trim() : id
+          }
+          const resolveTeamName = (id?: string) => {
+            if (!id) return ''
+            const match = teams.find((t) => t.id === id)
+            return match?.name || id
+          }
+          const normalizeStatus = (status: string) =>
+            status === 'archived' ? 'cancelled' : status
+
           // Fetch projects from the real backend API
           const projects = await projectService.getUserProjects(userId)
 
@@ -371,19 +392,21 @@ export const useProjectStore = create<ProjectState>()(
               name: p.name,
               description: p.description || '',
               completionPercentage: p.completion_percentage || 0,
-              status: p.status as ProjectStatus,
+              status: normalizeStatus(p.status) as ProjectStatus,
               riskLevel: p.risk_level as RiskLevel,
               daysUntilDeadline: p.target_end_date
                 ? Math.ceil((new Date(p.target_end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
                 : 0,
               priority: p.priority as Priority,
-              manager: p.manager_user_id || '',
-              team: p.owner_team_id || '',
+              manager: resolveUserName(p.manager_user_id),
+              managerId: p.manager_user_id || undefined,
+              team: resolveTeamName(p.owner_team_id),
+              teamId: p.owner_team_id || undefined,
               tasks: p.tasks?.map((t: any) => ({
                 id: t.id,
                 title: t.title,
                 status: t.status,
-                assignees: t.assigned_to_user_id ? [t.assigned_to_user_id] : [],
+                assignees: t.assigned_to_user_id ? [resolveUserName(t.assigned_to_user_id)] : [],
                 startDate: t.start_date || '',
                 endDate: t.due_date || '',
                 progress: t.completion_percentage || 0,

@@ -34,7 +34,9 @@ interface ProjectDetailModalProps {
     daysUntilDeadline?: number
     priority: string
     manager?: string
+    managerId?: string
     team?: string
+    teamId?: string
   }
   onClose: () => void
   onDelete?: (projectId: string, reason: string) => void
@@ -97,10 +99,30 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
 
   const teamOptions = useMemo(() => {
     return teams
-      .map((team) => team.name)
-      .filter((name): name is string => Boolean(name))
-      .sort((a, b) => a.localeCompare(b))
+      .filter((team) => team.name)
+      .map((team) => ({ id: team.id, name: team.name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [teams])
+
+  const assigneeIdByName = useMemo(() => {
+    return new Map(
+      users
+        .map((member) => ({
+          id: member.id,
+          name: `${member.firstName} ${member.lastName}`.trim(),
+        }))
+        .filter((member) => member.name)
+        .map((member) => [member.name, member.id])
+    )
+  }, [users])
+
+  const resolveAssigneeId = useCallback((name?: string | null) => {
+    if (!name) return null
+    const resolved = assigneeIdByName.get(name)
+    if (resolved) return resolved
+    const looksLikeUuid = /^[0-9a-fA-F-]{36}$/.test(name)
+    return looksLikeUuid ? name : null
+  }, [assigneeIdByName])
 
   // Local tasks state initialized from store
   const [tasks, setTasks] = useState<TaskWithAssignees[]>(
@@ -197,7 +219,7 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
         completion_percentage: updates.progress,
         start_date: updates.startDate || null,
         due_date: updates.endDate || null,
-        assigned_to_user_id: updates.assignees?.[0] || null,
+        assigned_to_user_id: resolveAssigneeId(updates.assignees?.[0]),
       })
 
       // Update local state
@@ -253,7 +275,7 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
         start_date: newTask.startDate || null,
         due_date: newTask.endDate || null,
         completion_percentage: newTask.progress || 0,
-        assigned_to_user_id: newTask.assignees?.[0] || null,
+        assigned_to_user_id: resolveAssigneeId(newTask.assignees?.[0]),
       })
 
       // Update local state with the created task
@@ -299,21 +321,28 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
     }
   }
 
-  const handleRiskLevelChange = (newRiskLevel: RiskLevel) => {
+  const handleRiskLevelChange = async (newRiskLevel: RiskLevel) => {
     const oldRiskLevel = storeProject?.riskLevel
     if (oldRiskLevel === newRiskLevel) return
 
-    updateProject(project.id, { riskLevel: newRiskLevel })
-    addAuditLog(
-      'UPDATE',
-      project.name,
-      { riskLevel: oldRiskLevel },
-      { riskLevel: newRiskLevel },
-      ['riskLevel'],
-      'projects'
-    )
-    setSaveMessage('Risk level updated!')
-    setTimeout(() => setSaveMessage(null), 2000)
+    try {
+      await projectService.updateProject(project.id, { risk_level: newRiskLevel })
+      updateProject(project.id, { riskLevel: newRiskLevel })
+      addAuditLog(
+        'UPDATE',
+        project.name,
+        { riskLevel: oldRiskLevel },
+        { riskLevel: newRiskLevel },
+        ['riskLevel'],
+        'projects'
+      )
+      setSaveMessage('Risk level updated!')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (error) {
+      console.error('Failed to update risk level:', error)
+      setSaveMessage('Failed to update risk level')
+      setTimeout(() => setSaveMessage(null), 2000)
+    }
   }
 
   // Statuses that require a mandatory reason
@@ -333,8 +362,9 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
     performStatusChange(newStatus)
   }
 
-  const performStatusChange = (newStatus: ProjectStatus, reason?: string) => {
+  const performStatusChange = async (newStatus: ProjectStatus, reason?: string) => {
     const oldStatus = storeProject?.status
+    const backendStatus = newStatus === 'cancelled' ? 'archived' : newStatus
 
     const updates: Partial<typeof storeProject> = { status: newStatus }
     if (reason) {
@@ -347,23 +377,30 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
       }
     }
 
-    updateProject(project.id, updates)
-    addAuditLog(
-      'STATUS_CHANGE',
-      project.name,
-      { status: oldStatus },
-      { status: newStatus, reason },
-      ['status'],
-      'projects'
-    )
-    setSaveMessage('Status updated!')
-    setTimeout(() => setSaveMessage(null), 2000)
+    try {
+      await projectService.updateProject(project.id, { status: backendStatus })
+      updateProject(project.id, updates)
+      addAuditLog(
+        'STATUS_CHANGE',
+        project.name,
+        { status: oldStatus },
+        { status: newStatus, reason },
+        ['status'],
+        'projects'
+      )
+      setSaveMessage('Status updated!')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (error) {
+      console.error('Failed to update status:', error)
+      setSaveMessage('Failed to update status')
+      setTimeout(() => setSaveMessage(null), 2000)
+    }
   }
 
-  const handleStatusChangeConfirm = () => {
+  const handleStatusChangeConfirm = async () => {
     if (!statusChangeDialog.targetStatus || !statusChangeDialog.reason.trim()) return
 
-    performStatusChange(statusChangeDialog.targetStatus, statusChangeDialog.reason)
+    await performStatusChange(statusChangeDialog.targetStatus, statusChangeDialog.reason)
     setStatusChangeDialog({ isOpen: false, targetStatus: null, reason: '' })
   }
 
@@ -430,6 +467,10 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
           isAdmin={hasRole('admin')}
           teamMembers={teamMembers}
           teamOptions={teamOptions}
+          onSaveMessage={(message) => {
+            setSaveMessage(message)
+            setTimeout(() => setSaveMessage(null), 2000)
+          }}
         />
       )}
 
@@ -535,15 +576,20 @@ function OverviewTab({
   onDelete?: (reason: string) => void
   isAdmin: boolean
   teamMembers: { id: string; name: string }[]
-  teamOptions: string[]
+  teamOptions: { id: string; name: string }[]
+  onSaveMessage?: (message: string) => void
 }) {
   const [showRiskDropdown, setShowRiskDropdown] = useState(false)
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleteReason, setDeleteReason] = useState('')
   const [editingDetails, setEditingDetails] = useState(false)
-  const [localManager, setLocalManager] = useState(project.manager || '')
-  const [localTeam, setLocalTeam] = useState(project.team || '')
+  const initialManagerId =
+    project.managerId || teamMembers.find((member) => member.name === project.manager)?.id || ''
+  const initialTeamId =
+    project.teamId || teamOptions.find((team) => team.name === project.team)?.id || ''
+  const [localManagerId, setLocalManagerId] = useState(initialManagerId)
+  const [localTeamId, setLocalTeamId] = useState(initialTeamId)
   const [localPriority, setLocalPriority] = useState<string>(project.priority || 'medium')
   const statusDropdownRef = useRef<HTMLDivElement>(null)
   const riskDropdownRef = useRef<HTMLDivElement>(null)
@@ -563,6 +609,20 @@ function OverviewTab({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (!project.managerId && project.manager && !localManagerId) {
+      const match = teamMembers.find((member) => member.name === project.manager)
+      if (match) setLocalManagerId(match.id)
+    }
+  }, [project.manager, project.managerId, teamMembers, localManagerId])
+
+  useEffect(() => {
+    if (!project.teamId && project.team && !localTeamId) {
+      const match = teamOptions.find((team) => team.name === project.team)
+      if (match) setLocalTeamId(match.id)
+    }
+  }, [project.team, project.teamId, teamOptions, localTeamId])
 
   const riskColors: Record<string, string> = {
     low: 'text-green-400',
@@ -763,16 +823,35 @@ function OverviewTab({
             <h3 className="text-lg font-medium text-white">Project Details</h3>
             {isAdmin && (
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (editingDetails) {
-                    // Save changes
-                    updateProject(project.id, {
-                      manager: localManager,
-                      team: localTeam,
-                      priority: localPriority as Priority,
-                    })
+                    const selectedManager = teamMembers.find((member) => member.id === localManagerId)
+                    const selectedTeam = teamOptions.find((team) => team.id === localTeamId)
+                    const managerName = selectedManager?.name || 'Unassigned'
+                    const teamName = selectedTeam?.name || 'General'
+
+                    try {
+                      await projectService.updateProject(project.id, {
+                        manager_user_id: localManagerId || null,
+                        owner_team_id: localTeamId || null,
+                        priority: localPriority,
+                      })
+                      updateProject(project.id, {
+                        manager: managerName,
+                        managerId: localManagerId || undefined,
+                        team: teamName,
+                        teamId: localTeamId || undefined,
+                        priority: localPriority as Priority,
+                      })
+                      onSaveMessage?.('Changes saved!')
+                      setEditingDetails(false)
+                    } catch (error) {
+                      console.error('Failed to update project details:', error)
+                      onSaveMessage?.('Failed to update project')
+                    }
+                  } else {
+                    setEditingDetails(true)
                   }
-                  setEditingDetails(!editingDetails)
                 }}
                 className="text-sm px-3 py-1 rounded-lg bg-primary-500 hover:bg-primary-600 text-white transition-colors"
               >
@@ -787,14 +866,14 @@ function OverviewTab({
               <span className="text-slate-400">Assigned to:</span>
               {editingDetails ? (
                 <select
-                  value={localManager}
-                  onChange={(e) => setLocalManager(e.target.value)}
+                  value={localManagerId}
+                  onChange={(e) => setLocalManagerId(e.target.value)}
                   className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-primary-500"
                 >
                   <option value="">Not assigned</option>
                   {teamMembers.length > 0 ? (
                     teamMembers.map((member) => (
-                      <option key={member.id} value={member.name}>
+                      <option key={member.id} value={member.id}>
                         {member.name}
                       </option>
                     ))
@@ -814,15 +893,15 @@ function OverviewTab({
               <span className="text-slate-400">Team:</span>
               {editingDetails ? (
                 <select
-                  value={localTeam}
-                  onChange={(e) => setLocalTeam(e.target.value)}
+                  value={localTeamId}
+                  onChange={(e) => setLocalTeamId(e.target.value)}
                   className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-primary-500"
                 >
                   <option value="">Not assigned</option>
                   {teamOptions.length > 0 ? (
                     teamOptions.map((team) => (
-                      <option key={team} value={team}>
-                        {team}
+                      <option key={team.id} value={team.id}>
+                        {team.name}
                       </option>
                     ))
                   ) : (
@@ -848,7 +927,7 @@ function OverviewTab({
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
+                  <option value="critical">Critical</option>
                 </select>
               ) : (
                 <span className="text-white capitalize">{project.priority}</span>

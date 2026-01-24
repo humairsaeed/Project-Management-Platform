@@ -25,6 +25,7 @@ import {
   User,
 } from 'lucide-react'
 import { useProjectStore, type Project, type RiskLevel, type Priority, type ProjectStatus } from '../store/projectSlice'
+import projectService from '../services/projectService'
 import ProjectDetailModal from '../components/projects/ProjectDetailModal'
 import Avatar from '../components/common/Avatar'
 import { useAuthStore } from '../store/authSlice'
@@ -59,8 +60,8 @@ export default function ProjectsPage() {
   const [newProject, setNewProject] = useState({
     name: '',
     description: '',
-    team: '',
-    manager: '',
+    teamId: '',
+    managerId: '',
     priority: 'medium' as Priority,
     riskLevel: 'low' as RiskLevel,
     status: 'active' as ProjectStatus,
@@ -80,15 +81,17 @@ export default function ProjectsPage() {
 
   const teamOptions = useMemo(() => {
     return teams
-      .map((team) => team.name)
-      .filter((name): name is string => Boolean(name))
-      .sort((a, b) => a.localeCompare(b))
+      .filter((team) => team.name)
+      .map((team) => ({ id: team.id, name: team.name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [teams])
 
   const managerOptions = useMemo(() => {
     const activeUsers = users.filter((u) => u.status === 'active')
-    const names = activeUsers.map((u) => `${u.firstName} ${u.lastName}`.trim())
-    return Array.from(new Set(names)).filter(Boolean).sort((a, b) => a.localeCompare(b))
+    return activeUsers
+      .map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }))
+      .filter((u) => u.name)
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [users])
 
   // Get years that have projects (based on deadlines)
@@ -110,7 +113,8 @@ export default function ProjectsPage() {
     const userName = `${user.firstName} ${user.lastName}`
     return project.tasks.some((task) =>
       task.assignees.some(
-        (assignee: string) => assignee.toLowerCase() === userName.toLowerCase()
+        (assignee: string) =>
+          assignee.toLowerCase() === userName.toLowerCase() || assignee === user.id
       )
     )
   }
@@ -254,6 +258,13 @@ export default function ProjectsPage() {
   const handleCreateProject = () => {
     if (!newProject.name.trim()) return
 
+    const selectedTeam = teams.find((team) => team.id === newProject.teamId)
+    const selectedManager = users.find((u) => u.id === newProject.managerId)
+    const managerName = selectedManager
+      ? `${selectedManager.firstName} ${selectedManager.lastName}`.trim()
+      : ''
+    const teamName = selectedTeam?.name || ''
+
     const project: Project = {
       id: `p${Date.now()}`,
       name: newProject.name.trim(),
@@ -263,8 +274,10 @@ export default function ProjectsPage() {
       riskLevel: newProject.riskLevel,
       daysUntilDeadline: newProject.daysUntilDeadline,
       priority: newProject.priority,
-      manager: newProject.manager || 'Unassigned',
-      team: newProject.team || 'General',
+      manager: managerName || 'Unassigned',
+      managerId: newProject.managerId || undefined,
+      team: teamName || 'General',
+      teamId: newProject.teamId || undefined,
       tasks: [],
     }
 
@@ -273,8 +286,8 @@ export default function ProjectsPage() {
       setNewProject({
         name: '',
         description: '',
-        team: '',
-        manager: '',
+        teamId: '',
+        managerId: '',
         priority: 'medium',
         riskLevel: 'low',
         status: 'active',
@@ -303,12 +316,24 @@ export default function ProjectsPage() {
     setPermanentDeleteId(null)
   }
 
-  const handleMoveToUpcoming = (projectId: string) => {
-    moveToUpcoming(projectId)
+  const handleMoveToUpcoming = async (projectId: string) => {
+    try {
+      await projectService.updateProject(projectId, { status: 'on_hold' })
+      moveToUpcoming(projectId)
+    } catch (error) {
+      console.error('Failed to update project status:', error)
+      alert('Failed to update project status. Please try again.')
+    }
   }
 
-  const handleMoveToActive = (projectId: string) => {
-    moveToActive(projectId)
+  const handleMoveToActive = async (projectId: string) => {
+    try {
+      await projectService.updateProject(projectId, { status: 'active' })
+      moveToActive(projectId)
+    } catch (error) {
+      console.error('Failed to update project status:', error)
+      alert('Failed to update project status. Please try again.')
+    }
   }
 
   const cycleSortType = () => {
@@ -693,15 +718,15 @@ export default function ProjectsPage() {
                 <div>
                   <label className="text-sm text-slate-400 block mb-2">Team</label>
                   <select
-                    value={newProject.team}
-                    onChange={(e) => setNewProject({ ...newProject, team: e.target.value })}
+                    value={newProject.teamId}
+                    onChange={(e) => setNewProject({ ...newProject, teamId: e.target.value })}
                     className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500"
                   >
                     <option value="">Select team...</option>
                     {teamOptions.length > 0 ? (
                       teamOptions.map((team) => (
-                        <option key={team} value={team}>
-                          {team}
+                        <option key={team.id} value={team.id}>
+                          {team.name}
                         </option>
                       ))
                     ) : (
@@ -714,15 +739,15 @@ export default function ProjectsPage() {
                 <div>
                   <label className="text-sm text-slate-400 block mb-2">Assigned to</label>
                   <select
-                    value={newProject.manager}
-                    onChange={(e) => setNewProject({ ...newProject, manager: e.target.value })}
+                    value={newProject.managerId}
+                    onChange={(e) => setNewProject({ ...newProject, managerId: e.target.value })}
                     className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-primary-500"
                   >
                     <option value="">Select person...</option>
                     {managerOptions.length > 0 ? (
                       managerOptions.map((manager) => (
-                        <option key={manager} value={manager}>
-                          {manager}
+                        <option key={manager.id} value={manager.id}>
+                          {manager.name}
                         </option>
                       ))
                     ) : (

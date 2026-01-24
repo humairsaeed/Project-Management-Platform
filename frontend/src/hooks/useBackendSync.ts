@@ -14,13 +14,26 @@ export function useBackendSync() {
   const { projects, milestones, loadFromBackend, saveToBackend } = useProjectStore()
   const hasLoadedRef = useRef(false)
 
-  // Load from backend on mount/login
+  // Load from backend on mount/login, then save any local data
   useEffect(() => {
     if (isAuthenticated && !hasLoadedRef.current) {
-      loadFromBackend()
-      hasLoadedRef.current = true
+      const syncData = async () => {
+        const hasLocalData = projects.length > 0 || milestones.recent.length > 0 || milestones.upcoming.length > 0
+
+        // First, save any existing local data to backend (migration from localStorage to backend)
+        if (hasLocalData) {
+          console.log('Migrating local data to backend...')
+          await saveToBackend()
+        }
+
+        // Then load from backend to get latest data
+        await loadFromBackend()
+        hasLoadedRef.current = true
+      }
+      syncData()
     }
-  }, [isAuthenticated, loadFromBackend])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated])
 
   // Auto-save to backend when data changes (debounced)
   useEffect(() => {

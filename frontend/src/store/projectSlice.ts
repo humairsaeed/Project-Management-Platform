@@ -326,12 +326,19 @@ export const useProjectStore = create<ProjectState>()(
       loadFromBackend: async () => {
         try {
           const userData = await userDataService.loadUserData()
-          if (userData.projects || userData.milestones) {
+          // Only update if backend has data
+          if (userData.projects && userData.projects.length > 0) {
             set({
-              projects: userData.projects || initialProjects,
+              projects: userData.projects,
               milestones: userData.milestones || initialMilestones,
             })
+          } else if (userData.milestones && (userData.milestones.recent?.length > 0 || userData.milestones.upcoming?.length > 0)) {
+            set({
+              projects: userData.projects || get().projects,
+              milestones: userData.milestones,
+            })
           }
+          // If backend is empty, keep current state (don't overwrite)
         } catch (error) {
           console.error('Failed to load from backend:', error)
         }
@@ -351,25 +358,16 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: 'project-storage',
-      version: 2,
+      version: 3,
       partialize: (state) => ({
         projects: state.projects,
         milestones: state.milestones,
       }),
       migrate: (persistedState: any, version: number) => {
-        let state = persistedState as Pick<ProjectState, 'projects' | 'milestones'>
-
-        // Migration to version 2: Backend Sync - Clear localStorage, will load from backend
-        if (version < 2) {
-          console.log(`Migrating projects from version ${version} to version 2: Switching to backend storage`)
-          // Clear localStorage data, will be loaded from backend on mount
-          state = {
-            projects: initialProjects,
-            milestones: initialMilestones,
-          }
-        }
-
-        return state
+        // Return persisted state as-is - we preserve all data now
+        // Backend sync will handle syncing to server
+        console.log(`Project storage version: ${version}, migrating to version 3 (backend sync enabled)`)
+        return persistedState as Pick<ProjectState, 'projects' | 'milestones'>
       },
     }
   )

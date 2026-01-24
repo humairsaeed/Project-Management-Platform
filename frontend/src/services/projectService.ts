@@ -2,6 +2,21 @@ import api from './api'
 import type { Project, ProjectSummary, PortfolioOverview } from '../types/project'
 import type { PaginatedResponse } from '../types/api'
 
+type ProjectPayload = {
+  name?: string
+  description?: string | null
+  status?: string
+  priority?: string
+  risk_level?: string
+  completion_percentage?: number
+  owner_team_id?: string | null
+  manager_user_id?: string | null
+  target_start_date?: string | null
+  target_end_date?: string | null
+  actual_start_date?: string | null
+  actual_end_date?: string | null
+}
+
 export const projectService = {
   /**
    * Get portfolio overview for executive dashboard
@@ -49,7 +64,7 @@ export const projectService = {
   /**
    * Create a new project
    */
-  async createProject(data: Partial<Project>): Promise<Project> {
+  async createProject(data: ProjectPayload): Promise<Project> {
     const response = await api.post('/projects', data)
     return response.data
   },
@@ -57,7 +72,7 @@ export const projectService = {
   /**
    * Update a project
    */
-  async updateProject(projectId: string, data: Partial<Project>): Promise<Project> {
+  async updateProject(projectId: string, data: ProjectPayload): Promise<Project> {
     const response = await api.patch(`/projects/${projectId}`, data)
     return response.data
   },

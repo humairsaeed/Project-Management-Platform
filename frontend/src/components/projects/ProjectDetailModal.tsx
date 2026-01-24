@@ -568,6 +568,7 @@ function OverviewTab({
   isAdmin,
   teamMembers,
   teamOptions,
+  onSaveMessage,
 }: {
   project: ProjectDetailModalProps['project']
   stats: { completedTasks: number; inProgressTasks: number; todoTasks: number; totalTasks: number }
@@ -590,7 +591,9 @@ function OverviewTab({
     project.teamId || teamOptions.find((team) => team.name === project.team)?.id || ''
   const [localManagerId, setLocalManagerId] = useState(initialManagerId)
   const [localTeamId, setLocalTeamId] = useState(initialTeamId)
-  const [localPriority, setLocalPriority] = useState<string>(project.priority || 'medium')
+  const [localPriority, setLocalPriority] = useState<Priority>(
+    (project.priority as Priority) || 'medium'
+  )
   const statusDropdownRef = useRef<HTMLDivElement>(null)
   const riskDropdownRef = useRef<HTMLDivElement>(null)
   const { updateProject } = useProjectStore()
@@ -921,7 +924,7 @@ function OverviewTab({
               {editingDetails ? (
                 <select
                   value={localPriority}
-                  onChange={(e) => setLocalPriority(e.target.value)}
+                  onChange={(e) => setLocalPriority(e.target.value as Priority)}
                   className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-primary-500"
                 >
                   <option value="low">Low</option>

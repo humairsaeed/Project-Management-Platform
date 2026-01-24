@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import userDataService from '../services/userDataService'
+import projectService from '../services/projectService'
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
 export type ProjectStatus = 'active' | 'completed' | 'on_hold' | 'planning' | 'cancelled'
@@ -107,7 +107,7 @@ interface ProjectState {
   getActiveProjects: () => Project[]
   getCompletedProjects: () => Project[]
   getDeletedProjects: () => Project[]
-  loadFromBackend: () => Promise<void>
+  loadFromBackend: (userId?: string) => Promise<void>
   saveToBackend: () => Promise<void>
 }
 
@@ -323,52 +323,67 @@ export const useProjectStore = create<ProjectState>()(
         return get().projects.filter((p) => p.isDeleted)
       },
 
-      loadFromBackend: async () => {
+      loadFromBackend: async (userId?: string) => {
         try {
-          const userData = await userDataService.loadUserData()
-          // Only update if backend has data
-          if (userData.projects && userData.projects.length > 0) {
-            set({
-              projects: userData.projects,
-              milestones: userData.milestones || initialMilestones,
-            })
-          } else if (userData.milestones && (userData.milestones.recent?.length > 0 || userData.milestones.upcoming?.length > 0)) {
-            set({
-              projects: userData.projects || get().projects,
-              milestones: userData.milestones,
-            })
+          if (!userId) {
+            console.warn('No user ID provided for loadFromBackend')
+            return
           }
-          // If backend is empty, keep current state (don't overwrite)
+
+          // Fetch projects from the real backend API
+          const projects = await projectService.getUserProjects(userId)
+
+          if (projects && projects.length > 0) {
+            // Transform backend data to match frontend format
+            const transformedProjects = projects.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              description: p.description || '',
+              completionPercentage: p.completion_percentage || 0,
+              status: p.status as ProjectStatus,
+              riskLevel: p.risk_level as RiskLevel,
+              daysUntilDeadline: p.target_end_date
+                ? Math.ceil((new Date(p.target_end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                : 0,
+              priority: p.priority as Priority,
+              manager: p.manager_user_id || '',
+              team: p.owner_team_id || '',
+              tasks: p.tasks?.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                status: t.status,
+                assignees: t.assigned_to_user_id ? [t.assigned_to_user_id] : [],
+                startDate: t.start_date || '',
+                endDate: t.due_date || '',
+                progress: t.completion_percentage || 0,
+                comments: [],
+              })) || [],
+              auditLogs: [],
+            }))
+
+            set({ projects: transformedProjects })
+            console.log(`Loaded ${transformedProjects.length} projects from backend`)
+          } else {
+            console.log('No projects found for user')
+          }
         } catch (error) {
           console.error('Failed to load from backend:', error)
         }
       },
 
       saveToBackend: async () => {
-        try {
-          const state = get()
-          await userDataService.saveUserData({
-            projects: state.projects,
-            milestones: state.milestones,
-          })
-        } catch (error) {
-          console.error('Failed to save to backend:', error)
-        }
+        // No-op: Projects are now saved individually through API calls
+        // This method kept for backward compatibility
+        console.log('saveToBackend called - no action needed (using real-time API updates)')
       },
     }),
     {
       name: 'project-storage',
-      version: 3,
+      version: 1,
       partialize: (state) => ({
         projects: state.projects,
         milestones: state.milestones,
       }),
-      migrate: (persistedState: any, version: number) => {
-        // Return persisted state as-is - we preserve all data now
-        // Backend sync will handle syncing to server
-        console.log(`Project storage version: ${version}, migrating to version 3 (backend sync enabled)`)
-        return persistedState as Pick<ProjectState, 'projects' | 'milestones'>
-      },
     }
   )
 )

@@ -166,6 +166,17 @@ CREATE TABLE IF NOT EXISTS projects.task_dependencies (
     PRIMARY KEY (predecessor_task_id, successor_task_id)
 );
 
+-- Project assignments (team members)
+CREATE TABLE IF NOT EXISTS projects.project_assignments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project_id UUID NOT NULL REFERENCES projects.projects(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    role VARCHAR(50) DEFAULT 'member' CHECK (role IN ('manager', 'member', 'viewer')),
+    assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    assigned_by UUID REFERENCES auth.users(id),
+    UNIQUE(project_id, user_id)
+);
+
 -- =============================================================================
 -- INSIGHTS SCHEMA TABLES
 -- =============================================================================
@@ -225,6 +236,8 @@ CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON projects.tasks(assigned_to_user
 CREATE INDEX IF NOT EXISTS idx_tasks_parent ON projects.tasks(parent_task_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_path ON projects.tasks USING GIST (path);
 CREATE INDEX IF NOT EXISTS idx_milestones_project ON projects.milestones(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_assignments_project ON projects.project_assignments(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_assignments_user ON projects.project_assignments(user_id);
 CREATE INDEX IF NOT EXISTS idx_analysis_requests_project ON insights.analysis_requests(project_id);
 CREATE INDEX IF NOT EXISTS idx_generated_insights_project ON insights.generated_insights(project_id);
 CREATE INDEX IF NOT EXISTS idx_risk_assessments_project ON insights.risk_assessments(project_id);
@@ -306,6 +319,24 @@ INSERT INTO projects.milestones (id, project_id, name, target_date, status) VALU
 ('00000000-0000-0000-0000-000000002002', '00000000-0000-0000-0000-000000000103', 'Project Complete', '2025-03-05', 'pending'),
 ('00000000-0000-0000-0000-000000002003', '00000000-0000-0000-0000-000000000102', 'Phase 1 Complete', '2025-03-01', 'pending')
 ON CONFLICT (id) DO NOTHING;
+
+-- =============================================================================
+-- SEED DATA - PROJECT ASSIGNMENTS
+-- =============================================================================
+
+-- Assign managers and team members to projects
+INSERT INTO projects.project_assignments (project_id, user_id, role, assigned_by) VALUES
+-- WAF/API Security project
+('00000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-000000000003', 'manager', '00000000-0000-0000-0000-000000000001'),
+('00000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-000000000002', 'member', '00000000-0000-0000-0000-000000000001'),
+-- Cloud Migration project
+('00000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000002', 'manager', '00000000-0000-0000-0000-000000000001'),
+('00000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000003', 'member', '00000000-0000-0000-0000-000000000001'),
+-- Vulnerabilities Remediation
+('00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000003', 'manager', '00000000-0000-0000-0000-000000000001'),
+-- Tape Library project
+('00000000-0000-0000-0000-000000000104', '00000000-0000-0000-0000-000000000002', 'manager', '00000000-0000-0000-0000-000000000001')
+ON CONFLICT (project_id, user_id) DO NOTHING;
 
 -- Grant permissions
 GRANT USAGE ON SCHEMA auth TO dev;

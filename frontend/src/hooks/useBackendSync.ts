@@ -2,66 +2,29 @@ import { useEffect, useRef } from 'react'
 import { useProjectStore } from '../store/projectSlice'
 import { useAuthStore } from '../store/authSlice'
 
-let syncTimeout: ReturnType<typeof setTimeout> | null = null
-
 /**
  * Hook to sync project data with backend
  * - Loads data from backend on mount/login
- * - Auto-saves to backend when data changes (debounced)
+ * - Projects are now managed through real-time API calls (no auto-save needed)
  */
 export function useBackendSync() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
-  const { projects, milestones, loadFromBackend, saveToBackend } = useProjectStore()
+  const user = useAuthStore((state) => state.user)
+  const { loadFromBackend } = useProjectStore()
   const hasLoadedRef = useRef(false)
 
-  // Load from backend on mount/login, then save any local data
+  // Load from backend on mount/login
   useEffect(() => {
-    if (isAuthenticated && !hasLoadedRef.current) {
+    if (isAuthenticated && user && !hasLoadedRef.current) {
       const syncData = async () => {
-        const hasLocalData = projects.length > 0 || milestones.recent.length > 0 || milestones.upcoming.length > 0
-
-        // First, save any existing local data to backend (migration from localStorage to backend)
-        if (hasLocalData) {
-          console.log('Migrating local data to backend...')
-          await saveToBackend()
-        }
-
-        // Then load from backend to get latest data
-        await loadFromBackend()
+        console.log('Loading projects from backend for user:', user.id)
+        await loadFromBackend(user.id)
         hasLoadedRef.current = true
       }
       syncData()
+    } else if (!isAuthenticated) {
+      hasLoadedRef.current = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated])
-
-  // Auto-save to backend when data changes (debounced)
-  useEffect(() => {
-    if (!isAuthenticated || !hasLoadedRef.current) return
-
-    // Clear previous timeout
-    if (syncTimeout) {
-      clearTimeout(syncTimeout)
-    }
-
-    // Debounce save (wait 1 second after last change)
-    syncTimeout = setTimeout(() => {
-      saveToBackend()
-    }, 1000)
-
-    return () => {
-      if (syncTimeout) {
-        clearTimeout(syncTimeout)
-      }
-    }
-  }, [projects, milestones, isAuthenticated, saveToBackend])
-
-  // Save to backend on logout/unmount
-  useEffect(() => {
-    return () => {
-      if (isAuthenticated && hasLoadedRef.current) {
-        saveToBackend()
-      }
-    }
-  }, [isAuthenticated, saveToBackend])
+  }, [isAuthenticated, user?.id])
 }

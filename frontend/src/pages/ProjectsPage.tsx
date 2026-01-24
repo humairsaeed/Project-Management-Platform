@@ -268,17 +268,21 @@ export default function ProjectsPage() {
       tasks: [],
     }
 
-    addProject(project)
-    setShowNewProjectModal(false)
-    setNewProject({
-      name: '',
-      description: '',
-      team: '',
-      manager: '',
-      priority: 'medium',
-      riskLevel: 'low',
-      status: 'active',
-      daysUntilDeadline: 30,
+    addProject(project, user?.id).then(() => {
+      setShowNewProjectModal(false)
+      setNewProject({
+        name: '',
+        description: '',
+        team: '',
+        manager: '',
+        priority: 'medium',
+        riskLevel: 'low',
+        status: 'active',
+        daysUntilDeadline: 30,
+      })
+    }).catch((error) => {
+      console.error('Failed to create project:', error)
+      alert('Failed to create project. Please try again.')
     })
   }
 

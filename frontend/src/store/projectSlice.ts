@@ -87,7 +87,7 @@ interface ProjectState {
   milestones: { recent: Milestone[]; upcoming: Milestone[] }
 
   // Actions
-  addProject: (project: Project) => void
+  addProject: (project: Project, currentUserId?: string) => Promise<void>
   deleteProject: (projectId: string) => void
   softDeleteProject: (projectId: string) => void
   restoreProject: (projectId: string) => void
@@ -117,10 +117,41 @@ export const useProjectStore = create<ProjectState>()(
       projects: initialProjects,
       milestones: initialMilestones,
 
-      addProject: (project) => {
-        set((state) => ({
-          projects: [project, ...state.projects],
-        }))
+      addProject: async (project, currentUserId) => {
+        try {
+          // Transform frontend format to backend format
+          const backendPayload: any = {
+            name: project.name,
+            description: project.description,
+            status: project.status || 'planning',
+            priority: project.priority || 'medium',
+            risk_level: project.riskLevel || 'low',
+            completion_percentage: 0,
+            manager_user_id: currentUserId, // Use the logged-in user as manager
+            owner_team_id: project.team && project.team !== 'General' ? project.team : null,
+            target_start_date: null,
+            target_end_date: project.daysUntilDeadline
+              ? new Date(Date.now() + project.daysUntilDeadline * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+              : null,
+          }
+
+          // Call backend API to create project
+          const createdProject = await projectService.createProject(backendPayload)
+
+          // Add the created project to local state
+          set((state) => ({
+            projects: [{
+              ...project,
+              id: createdProject.id,
+              manager: currentUserId || project.manager,
+            }, ...state.projects],
+          }))
+
+          console.log('Project created successfully:', createdProject)
+        } catch (error) {
+          console.error('Failed to create project:', error)
+          throw error
+        }
       },
 
       deleteProject: (projectId) => {

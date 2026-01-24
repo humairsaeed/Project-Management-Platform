@@ -97,7 +97,7 @@ export default function TeamPage() {
       team.description.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     if (!newUser.firstName || !newUser.lastName || !newUser.email || !newUser.password) {
       alert('Please fill in all required fields')
       return
@@ -128,23 +128,21 @@ export default function TeamPage() {
       return
     }
 
-    const user: User = {
-      id: `u${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      firstName: newUser.firstName.trim(),
-      lastName: newUser.lastName.trim(),
-      email: newUser.email.trim().toLowerCase(),
-      password: newUser.password,
-      avatarUrl: newUser.avatarUrl || undefined,
-      roles: newUser.roles,
-      teams: newUser.teams,
-      status: 'active',
-      lastActive: 'Just now',
-      loginHistory: [],
+    try {
+      await addUser({
+        firstName: newUser.firstName.trim(),
+        lastName: newUser.lastName.trim(),
+        email: newUser.email.trim().toLowerCase(),
+        password: newUser.password,
+        avatarUrl: newUser.avatarUrl || undefined,
+        roles: newUser.roles,
+        teams: newUser.teams,
+        isActive: true,
+      })
+    } catch (error) {
+      alert('Failed to create user')
+      return
     }
-
-    console.log('Creating new user:', { ...user, password: '***' })
-    addUser(user)
-    console.log('User added successfully')
 
     setShowAddUserDialog(false)
     setNewUser({
@@ -158,18 +156,20 @@ export default function TeamPage() {
     })
   }
 
-  const handleAddTeam = () => {
+  const handleAddTeam = async () => {
     if (!newTeam.name || !newTeam.lead) return
 
-    const team: Team = {
-      id: `t${Date.now()}`,
-      name: newTeam.name,
-      description: newTeam.description,
-      members: newTeam.members,
-      lead: newTeam.lead,
+    try {
+      await addTeam({
+        name: newTeam.name,
+        description: newTeam.description,
+        leadUserId: newTeam.lead,
+        members: newTeam.members,
+      })
+    } catch (error) {
+      alert('Failed to create team')
+      return
     }
-
-    addTeam(team)
     setShowAddTeamDialog(false)
     setNewTeam({
       name: '',
@@ -179,14 +179,22 @@ export default function TeamPage() {
     })
   }
 
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     if (confirm('Are you sure you want to delete this user?')) {
-      deleteUser(userId)
+      try {
+        await deleteUser(userId)
+      } catch (error) {
+        alert('Failed to delete user')
+      }
     }
   }
 
-  const handleToggleUserStatus = (userId: string) => {
-    toggleUserStatus(userId)
+  const handleToggleUserStatus = async (userId: string) => {
+    try {
+      await toggleUserStatus(userId)
+    } catch (error) {
+      alert('Failed to update user status')
+    }
   }
 
   const handleEditUser = (user: User) => {
@@ -194,7 +202,7 @@ export default function TeamPage() {
     setShowEditUserDialog(true)
   }
 
-  const handleSaveUser = () => {
+  const handleSaveUser = async () => {
     if (!editingUser) return
 
     // Validation
@@ -222,14 +230,19 @@ export default function TeamPage() {
       return
     }
 
-    updateUser(editingUser.id, {
-      firstName: editingUser.firstName.trim(),
-      lastName: editingUser.lastName.trim(),
-      email: editingUser.email.trim().toLowerCase(),
-      avatarUrl: editingUser.avatarUrl,
-      roles: editingUser.roles,
-      teams: editingUser.teams,
-    })
+    try {
+      await updateUser(editingUser.id, {
+        firstName: editingUser.firstName.trim(),
+        lastName: editingUser.lastName.trim(),
+        email: editingUser.email.trim().toLowerCase(),
+        avatarUrl: editingUser.avatarUrl,
+        roles: editingUser.roles,
+        teams: editingUser.teams,
+      })
+    } catch (error) {
+      alert('Failed to update user')
+      return
+    }
 
     setShowEditUserDialog(false)
     setEditingUser(null)
@@ -241,23 +254,33 @@ export default function TeamPage() {
     setTeamMenuOpen(null)
   }
 
-  const handleSaveTeam = () => {
+  const handleSaveTeam = async () => {
     if (!editingTeam) return
 
-    updateTeam(editingTeam.id, {
-      name: editingTeam.name,
-      description: editingTeam.description,
-      lead: editingTeam.lead,
-      members: editingTeam.members,
-    })
+    try {
+      await updateTeam(editingTeam.id, {
+        name: editingTeam.name,
+        description: editingTeam.description,
+        leadUserId: editingTeam.lead,
+        members: editingTeam.members,
+      })
+    } catch (error) {
+      alert('Failed to update team')
+      return
+    }
 
     setShowEditTeamDialog(false)
     setEditingTeam(null)
   }
 
-  const handleDeleteTeam = (teamId: string) => {
+  const handleDeleteTeam = async (teamId: string) => {
     if (confirm('Are you sure you want to delete this team?')) {
-      deleteTeam(teamId)
+      try {
+        await deleteTeam(teamId)
+      } catch (error) {
+        alert('Failed to delete team')
+        return
+      }
       setTeamMenuOpen(null)
     }
   }
@@ -267,11 +290,16 @@ export default function TeamPage() {
     setShowPasswordDialog(true)
   }
 
-  const handleSavePassword = () => {
+  const handleSavePassword = async () => {
     if (!passwordUserId || !newPassword) return
 
     const { resetUserPassword } = useTeamStore.getState()
-    resetUserPassword(passwordUserId, newPassword)
+    try {
+      await resetUserPassword(passwordUserId, newPassword)
+    } catch (error) {
+      alert('Failed to reset password')
+      return
+    }
 
     setShowPasswordDialog(false)
     setPasswordUserId(null)
@@ -655,9 +683,19 @@ export default function TeamPage() {
                   onChange={(e) => setNewUser({ ...newUser, roles: [e.target.value] })}
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-500"
                 >
-                  <option value="contributor">Contributor</option>
-                  <option value="project_manager">Project Manager</option>
-                  <option value="admin">Administrator</option>
+                  {roles.length > 0 ? (
+                    roles.map((role) => (
+                      <option key={role.id} value={role.name}>
+                        {role.displayName}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="contributor">Contributor</option>
+                      <option value="project_manager">Project Manager</option>
+                      <option value="admin">Administrator</option>
+                    </>
+                  )}
                 </select>
               </div>
             </div>

@@ -6,7 +6,7 @@ import Avatar from '../components/common/Avatar'
 
 export default function ProfilePage() {
   const { user: authUser } = useAuthStore()
-  const { users, updateUser } = useTeamStore()
+  const { users, updateUser, resetUserPassword, loading } = useTeamStore()
 
   // Find the full user object from team store
   const fullUser = users.find((u) => u.id === authUser?.id)
@@ -26,6 +26,14 @@ export default function ProfilePage() {
   })
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-slate-400">Loading profile...</p>
+      </div>
+    )
+  }
 
   if (!authUser || !fullUser) {
     return (
@@ -63,32 +71,31 @@ export default function ProfilePage() {
     reader.readAsDataURL(file)
   }
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     if (!editedUser.firstName || !editedUser.lastName || !editedUser.email) {
       setError('All fields are required')
       return
     }
 
-    updateUser(fullUser.id, {
-      firstName: editedUser.firstName,
-      lastName: editedUser.lastName,
-      email: editedUser.email,
-      avatarUrl: editedUser.avatarUrl || undefined,
-    })
+    try {
+      await updateUser(fullUser.id, {
+        firstName: editedUser.firstName,
+        lastName: editedUser.lastName,
+        email: editedUser.email,
+        avatarUrl: editedUser.avatarUrl || undefined,
+      })
+    } catch (error) {
+      setError('Failed to update profile')
+      return
+    }
 
     setEditing(false)
     setSuccess('Profile updated successfully')
     setTimeout(() => setSuccess(''), 3000)
   }
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     setError('')
-
-    // Validate current password
-    if (fullUser.password !== passwordData.currentPassword) {
-      setError('Current password is incorrect')
-      return
-    }
 
     // Validate new password
     if (passwordData.newPassword.length < 6) {
@@ -102,10 +109,12 @@ export default function ProfilePage() {
       return
     }
 
-    // Update password
-    updateUser(fullUser.id, {
-      password: passwordData.newPassword,
-    })
+    try {
+      await resetUserPassword(fullUser.id, passwordData.newPassword, passwordData.currentPassword)
+    } catch (error) {
+      setError('Failed to update password')
+      return
+    }
 
     setShowPasswordDialog(false)
     setPasswordData({

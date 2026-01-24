@@ -12,7 +12,7 @@ export default function SettingsPage() {
   const user = useAuthStore((state) => state.user)
 
   // Check if user has admin permissions
-  const isAdmin = user?.roles?.includes('admin') ?? true // Default true for mock
+  const isAdmin = user?.roles?.includes('admin') ?? false
 
   const tabs = [
     { id: 'roles' as const, label: 'Role Management', icon: Shield },

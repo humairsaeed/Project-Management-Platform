@@ -13,8 +13,16 @@ export const authService = {
   /**
    * Refresh access token
    */
-  async refreshToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
-    const response = await api.post('/auth/refresh', { refresh_token: refreshToken })
+  async refreshToken(refreshToken: string): Promise<{ accessToken: string }> {
+    const response = await api.post(
+      '/auth/refresh',
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${refreshToken}`,
+        },
+      }
+    )
     return response.data
   },
 
@@ -29,7 +37,7 @@ export const authService = {
    * Get current user profile
    */
   async getCurrentUser() {
-    const response = await api.get('/auth/users/me')
+    const response = await api.get('/auth/me')
     return response.data
   },
 }

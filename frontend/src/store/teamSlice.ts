@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import { useAuthStore } from './authSlice'
+import teamService, { type ApiRole, type ApiTeam, type ApiUser, type CreateTeamPayload, type CreateUserPayload, type UpdateTeamPayload, type UpdateUserPayload } from '../services/teamService'
 
 export interface User {
   id: string
@@ -12,7 +12,6 @@ export interface User {
   teams: string[]
   status: 'active' | 'inactive'
   lastActive: string
-  password?: string // In a real app, this would be handled server-side
   loginHistory?: LoginEvent[]
 }
 
@@ -46,91 +45,26 @@ export interface Role {
   }
 }
 
-const defaultRoles: Role[] = [
-  {
-    id: '1',
-    name: 'admin',
-    displayName: 'Administrator',
-    description: 'Full system access including user management and settings',
-    isSystemRole: true,
-    permissions: {
-      dashboard: { access: true, view_analytics: true },
-      projects: { create: true, read: true, update: true, delete: true, archive: true },
-      tasks: { create: true, read: true, update: true, delete: true, assign: true, move: true },
-      team: { access: true, view_members: true, manage_members: true, manage_teams: true },
-      users: { create: true, read: true, update: true, delete: true, manage_roles: true },
-      settings: { access: true, manage_roles: true, view_audit: true },
-    },
-  },
-  {
-    id: '2',
-    name: 'project_manager',
-    displayName: 'Project Manager',
-    description: 'Can manage projects and tasks, assign team members',
-    isSystemRole: true,
-    permissions: {
-      dashboard: { access: true, view_analytics: false },
-      projects: { create: true, read: true, update: true, delete: false, archive: false },
-      tasks: { create: true, read: true, update: true, delete: true, assign: true, move: true },
-      team: { access: false, view_members: true, manage_members: false, manage_teams: false },
-      users: { create: false, read: true, update: false, delete: false, manage_roles: false },
-      settings: { access: false, manage_roles: false, view_audit: true },
-    },
-  },
-  {
-    id: '3',
-    name: 'contributor',
-    displayName: 'Contributor',
-    description: 'Can view and update assigned tasks',
-    isSystemRole: true,
-    permissions: {
-      dashboard: { access: true, view_analytics: false },
-      projects: { create: false, read: true, update: false, delete: false, archive: false },
-      tasks: { create: true, read: true, update: true, delete: false, assign: false, move: true },
-      team: { access: false, view_members: false, manage_members: false, manage_teams: false },
-      users: { create: false, read: true, update: false, delete: false, manage_roles: false },
-      settings: { access: false, manage_roles: false, view_audit: false },
-    },
-  },
-]
-
-// Production: Only one admin account for initial setup
-// Admin can create additional users as needed
-const defaultUsers: User[] = [
-  {
-    id: 'admin-001',
-    firstName: 'System',
-    lastName: 'Administrator',
-    email: 'admin@company.com',
-    password: 'Admin@123',
-    roles: ['admin'],
-    teams: [],
-    status: 'active',
-    lastActive: 'Never',
-    loginHistory: [],
-  },
-]
-
-// Production: Empty teams array - admin will create teams as needed
-const defaultTeams: Team[] = []
-
 interface TeamState {
   users: User[]
   teams: Team[]
   roles: Role[]
+  loading: boolean
+  error: string | null
 
   // User actions
-  addUser: (user: User) => void
-  updateUser: (id: string, updates: Partial<User>) => void
-  deleteUser: (id: string) => void
-  toggleUserStatus: (id: string) => void
-  resetUserPassword: (id: string, newPassword: string) => void
+  loadAll: () => Promise<void>
+  addUser: (user: CreateUserPayload) => Promise<void>
+  updateUser: (id: string, updates: UpdateUserPayload) => Promise<void>
+  deleteUser: (id: string) => Promise<void>
+  toggleUserStatus: (id: string) => Promise<void>
+  resetUserPassword: (id: string, newPassword: string, currentPassword?: string) => Promise<void>
   recordLogin: (userId: string) => void
 
   // Team actions
-  addTeam: (team: Team) => void
-  updateTeam: (id: string, updates: Partial<Team>) => void
-  deleteTeam: (id: string) => void
+  addTeam: (team: CreateTeamPayload) => Promise<void>
+  updateTeam: (id: string, updates: UpdateTeamPayload) => Promise<void>
+  deleteTeam: (id: string) => Promise<void>
 
   // Role actions
   addRole: (role: Role) => void
@@ -138,213 +72,184 @@ interface TeamState {
   deleteRole: (id: string) => void
 }
 
-export const useTeamStore = create<TeamState>()(
-  persist(
-    (set) => ({
-      users: defaultUsers,
-      teams: defaultTeams,
-      roles: defaultRoles,
+const emptyPermissions: Role['permissions'] = {
+  dashboard: { access: false, view_analytics: false },
+  projects: { create: false, read: false, update: false, delete: false, archive: false },
+  tasks: { create: false, read: false, update: false, delete: false, assign: false, move: false },
+  team: { access: false, view_members: false, manage_members: false, manage_teams: false },
+  users: { create: false, read: false, update: false, delete: false, manage_roles: false },
+  settings: { access: false, manage_roles: false, view_audit: false },
+}
 
-      // User actions
-      addUser: (user) =>
-        set((state) => ({
-          users: [...state.users, user],
-        })),
+const normalizePermissions = (
+  permissions: Partial<Role['permissions']> | (Record<string, unknown> & { teams?: unknown }) | undefined
+): Role['permissions'] => {
+  const teamPermissions = (permissions as { team?: Role['permissions']['team']; teams?: Role['permissions']['team'] })
+    ?.team || (permissions as { teams?: Role['permissions']['team'] })?.teams
+  return {
+    dashboard: { ...emptyPermissions.dashboard, ...(permissions as Partial<Role['permissions']>)?.dashboard },
+    projects: { ...emptyPermissions.projects, ...(permissions as Partial<Role['permissions']>)?.projects },
+    tasks: { ...emptyPermissions.tasks, ...(permissions as Partial<Role['permissions']>)?.tasks },
+    team: { ...emptyPermissions.team, ...(teamPermissions || {}) },
+    users: { ...emptyPermissions.users, ...(permissions as Partial<Role['permissions']>)?.users },
+    settings: { ...emptyPermissions.settings, ...(permissions as Partial<Role['permissions']>)?.settings },
+  }
+}
 
-      updateUser: (id, updates) =>
-        set((state) => {
-          const updatedUsers = state.users.map((user) =>
-            user.id === id ? { ...user, ...updates } : user
-          )
+const mapRole = (role: ApiRole): Role => ({
+  id: role.id,
+  name: role.name,
+  displayName: role.displayName,
+  description: role.description || '',
+  isSystemRole: role.isSystemRole,
+  permissions: normalizePermissions(role.permissions as Partial<Role['permissions']>),
+})
 
-          // Sync with auth store if the updated user is currently logged in
-          const authUser = useAuthStore.getState().user
-          if (authUser && authUser.id === id) {
-            const profileUpdates: Partial<typeof authUser> = {}
-            if (updates.firstName !== undefined) profileUpdates.firstName = updates.firstName
-            if (updates.lastName !== undefined) profileUpdates.lastName = updates.lastName
-            if (updates.email !== undefined) profileUpdates.email = updates.email
-            if (updates.avatarUrl !== undefined) profileUpdates.avatarUrl = updates.avatarUrl
+const mapTeam = (team: ApiTeam): Team => ({
+  id: team.id,
+  name: team.name,
+  description: team.description || '',
+  members: team.members || [],
+  lead: team.leadUserId || '',
+})
 
-            if (Object.keys(profileUpdates).length > 0) {
-              useAuthStore.getState().updateUserProfile(profileUpdates)
-            }
-            if (updates.roles) {
-              useAuthStore.getState().updateUserRoles(updates.roles)
-            }
-            if (updates.teams) {
-              useAuthStore.getState().updateUserTeams(updates.teams)
-            }
-          }
+const mapUser = (user: ApiUser, existing?: User): User => ({
+  id: user.id,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  email: user.email,
+  avatarUrl: user.avatarUrl || undefined,
+  roles: user.roles || [],
+  teams: (user.teams || []).map((team) => team.id),
+  status: user.isActive ? 'active' : 'inactive',
+  lastActive: existing?.lastActive || 'Never',
+  loginHistory: existing?.loginHistory || [],
+})
 
-          return { users: updatedUsers }
-        }),
+export const useTeamStore = create<TeamState>((set, get) => ({
+  users: [],
+  teams: [],
+  roles: [],
+  loading: false,
+  error: null,
 
-      deleteUser: (id) =>
-        set((state) => ({
-          users: state.users.filter((user) => user.id !== id),
-        })),
+  loadAll: async () => {
+    set({ loading: true, error: null })
+    try {
+      const [users, teams, roles] = await Promise.all([
+        teamService.listUsers(),
+        teamService.listTeams(),
+        teamService.listRoles(),
+      ])
 
-      toggleUserStatus: (id) =>
-        set((state) => ({
-          users: state.users.map((user) =>
-            user.id === id
-              ? { ...user, status: user.status === 'active' ? 'inactive' : 'active' }
-              : user
-          ),
-        })),
+      const existingUsers = get().users
+      const mappedUsers = users.map((user) =>
+        mapUser(user, existingUsers.find((u) => u.id === user.id))
+      )
+      const mappedTeams = teams.map(mapTeam)
+      const mappedRoles = roles.map(mapRole)
 
-      resetUserPassword: (id, newPassword) =>
-        set((state) => ({
-          users: state.users.map((user) =>
-            user.id === id ? { ...user, password: newPassword } : user
-          ),
-        })),
+      set({
+        users: mappedUsers,
+        teams: mappedTeams,
+        roles: mappedRoles,
+        loading: false,
+      })
 
-      recordLogin: (userId) =>
-        set((state) => {
-          const updatedUsers = state.users.map((user) =>
-            user.id === userId
-              ? {
-                  ...user,
-                  lastActive: 'Just now',
-                  loginHistory: [
-                    ...(user.loginHistory || []),
-                    {
-                      timestamp: new Date().toISOString(),
-                      userAgent: navigator.userAgent,
-                    },
-                  ].slice(-50), // Keep last 50 login events
-                }
-              : user
-          )
-
-          return { users: updatedUsers }
-        }),
-
-      // Team actions
-      addTeam: (team) =>
-        set((state) => ({
-          teams: [...state.teams, team],
-        })),
-
-      updateTeam: (id, updates) =>
-        set((state) => ({
-          teams: state.teams.map((team) =>
-            team.id === id ? { ...team, ...updates } : team
-          ),
-        })),
-
-      deleteTeam: (id) =>
-        set((state) => ({
-          teams: state.teams.filter((team) => team.id !== id),
-        })),
-
-      // Role actions
-      addRole: (role) =>
-        set((state) => ({
-          roles: [...state.roles, role],
-        })),
-
-      updateRole: (id, updates) =>
-        set((state) => ({
-          roles: state.roles.map((role) =>
-            role.id === id ? { ...role, ...updates } : role
-          ),
-        })),
-
-      deleteRole: (id) =>
-        set((state) => ({
-          roles: state.roles.filter((role) => role.id !== id),
-        })),
-    }),
-    {
-      name: 'team-storage',
-      version: 3,
-      migrate: (persistedState: any, version: number) => {
-        let state = persistedState as TeamState
-
-        // Migration from version 0 to 1: add passwords and loginHistory
-        if (version === 0) {
-          const updatedUsers = state.users.map((user) => {
-            if (!user.password) {
-              return { ...user, password: 'demo123', loginHistory: [] }
-            }
-            if (!user.loginHistory) {
-              return { ...user, loginHistory: [] }
-            }
-            return user
+      const authUser = useAuthStore.getState().user
+      if (authUser) {
+        const updatedUser = mappedUsers.find((u) => u.id === authUser.id)
+        if (updatedUser) {
+          useAuthStore.getState().updateUserProfile({
+            firstName: updatedUser.firstName,
+            lastName: updatedUser.lastName,
+            email: updatedUser.email,
+            avatarUrl: updatedUser.avatarUrl,
           })
-
-          state = {
-            ...state,
-            users: updatedUsers,
-          }
+          useAuthStore.getState().updateUserRoles(updatedUser.roles)
+          useAuthStore.getState().updateUserTeams(updatedUser.teams)
         }
-
-        // Migration from version 1 to 2: add dashboard and team permissions
-        if (version <= 1) {
-          const updatedRoles = state.roles.map((role) => {
-            // Check if role already has new permission structure
-            if (!role.permissions.dashboard || !role.permissions.team) {
-              const { dashboard: _d, team: _t, ...oldPermissions } = role.permissions as any
-              return {
-                ...role,
-                permissions: {
-                  dashboard: role.name === 'admin'
-                    ? { access: true, view_analytics: true }
-                    : { access: true, view_analytics: false },
-                  ...oldPermissions,
-                  team: role.name === 'admin'
-                    ? { access: true, view_members: true, manage_members: true, manage_teams: true }
-                    : role.name === 'project_manager'
-                    ? { access: false, view_members: true, manage_members: false, manage_teams: false }
-                    : { access: false, view_members: false, manage_members: false, manage_teams: false },
-                },
-              }
-            }
-            return role
-          })
-
-          state = {
-            ...state,
-            roles: updatedRoles,
-          }
-        }
-
-        // Migration from version 2 to 3: PRODUCTION RESET
-        // Reset to clean slate with only admin user
-        if (version <= 2) {
-          console.log('Migrating to production version 3: Resetting to clean state')
-
-          // Keep only the admin user, or create if doesn't exist
-          const adminUser = state.users.find((u) => u.email === 'admin@company.com')
-
-          state = {
-            ...state,
-            users: adminUser
-              ? [
-                  {
-                    ...adminUser,
-                    id: 'admin-001',
-                    firstName: 'System',
-                    lastName: 'Administrator',
-                    password: 'Admin@123',
-                    roles: ['admin'],
-                    teams: [],
-                    status: 'active',
-                    lastActive: adminUser.lastActive || 'Never',
-                    loginHistory: adminUser.loginHistory || [],
-                  },
-                ]
-              : defaultUsers,
-            teams: defaultTeams,
-            roles: defaultRoles,
-          }
-        }
-
-        return state as TeamState
-      },
+      }
+    } catch (error) {
+      set({ loading: false, error: 'Failed to load team data' })
+      throw error
     }
-  )
-)
+  },
+
+  addUser: async (user) => {
+    await teamService.createUser(user)
+    await get().loadAll()
+  },
+
+  updateUser: async (id, updates) => {
+    await teamService.updateUser(id, updates)
+    await get().loadAll()
+  },
+
+  deleteUser: async (id) => {
+    await teamService.deleteUser(id)
+    await get().loadAll()
+  },
+
+  toggleUserStatus: async (id) => {
+    const user = get().users.find((u) => u.id === id)
+    if (!user) return
+    await teamService.updateUser(id, { isActive: user.status !== 'active' })
+    await get().loadAll()
+  },
+
+  resetUserPassword: async (id, newPassword, currentPassword) => {
+    await teamService.resetPassword(id, newPassword, currentPassword)
+  },
+
+  recordLogin: (userId) =>
+    set((state) => {
+      const updatedUsers = state.users.map((user) =>
+        user.id === userId
+          ? {
+              ...user,
+              lastActive: 'Just now',
+              loginHistory: [
+                ...(user.loginHistory || []),
+                {
+                  timestamp: new Date().toISOString(),
+                  userAgent: navigator.userAgent,
+                },
+              ].slice(-50),
+            }
+          : user
+      )
+
+      return { users: updatedUsers }
+    }),
+
+  addTeam: async (team) => {
+    await teamService.createTeam(team)
+    await get().loadAll()
+  },
+
+  updateTeam: async (id, updates) => {
+    await teamService.updateTeam(id, updates)
+    await get().loadAll()
+  },
+
+  deleteTeam: async (id) => {
+    await teamService.deleteTeam(id)
+    await get().loadAll()
+  },
+
+  addRole: (role) =>
+    set((state) => ({
+      roles: [...state.roles, role],
+    })),
+
+  updateRole: (id, updates) =>
+    set((state) => ({
+      roles: state.roles.map((role) => (role.id === id ? { ...role, ...updates } : role)),
+    })),
+
+  deleteRole: (id) =>
+    set((state) => ({
+      roles: state.roles.filter((role) => role.id !== id),
+    })),
+}))

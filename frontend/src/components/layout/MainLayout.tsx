@@ -1,10 +1,19 @@
+import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import { useUIStore } from '../../store/uiSlice'
+import { useTeamStore } from '../../store/teamSlice'
 
 export default function MainLayout() {
   const sidebarOpen = useUIStore((state) => state.sidebarOpen)
+  const loadAll = useTeamStore((state) => state.loadAll)
+
+  useEffect(() => {
+    loadAll().catch(() => {
+      // Keep UI usable even if team data fails to load
+    })
+  }, [loadAll])
 
   return (
     <div className="flex h-screen bg-slate-900">

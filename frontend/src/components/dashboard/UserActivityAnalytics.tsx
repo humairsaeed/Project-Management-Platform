@@ -90,9 +90,9 @@ export default function UserActivityAnalytics() {
 
   const totalActiveUsers = userActivityData.length
   const veryActiveUsers = userActivityData.filter((u) => u.activityScore >= 70).length
-  const averageScore = Math.round(
-    userActivityData.reduce((sum, u) => sum + u.activityScore, 0) / totalActiveUsers
-  )
+  const averageScore = totalActiveUsers > 0
+    ? Math.round(userActivityData.reduce((sum, u) => sum + u.activityScore, 0) / totalActiveUsers)
+    : 0
 
   return (
     <div className="card">

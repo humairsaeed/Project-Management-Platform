@@ -2,12 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authSlice'
 import { useTeamStore } from '../store/teamSlice'
-import api from '../services/api'
+import authService from '../services/authService'
 
 export default function LoginPage() {
   const navigate = useNavigate()
   const login = useAuthStore((state) => state.login)
-  const { users, recordLogin } = useTeamStore()
+  const { recordLogin, loadAll } = useTeamStore()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -19,81 +19,32 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      // Try real API first
-      const response = await api.post('/auth/login', { email, password })
-      const { accessToken, user } = response.data
+      const data = await authService.login({ email, password })
 
       login(
         {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          avatarUrl: user.avatarUrl,
-          roles: user.roles,
-          teams: user.teams?.map((t: { id: string }) => t.id) || [],
+          id: data.user.id,
+          email: data.user.email,
+          firstName: data.user.firstName,
+          lastName: data.user.lastName,
+          avatarUrl: data.user.avatarUrl,
+          roles: data.user.roles,
+          teams: data.user.teams?.map((t: { id: string }) => t.id) || [],
         },
-        accessToken
+        data.accessToken
       )
 
-      // Record login activity
-      recordLogin(user.id)
-
-      navigate('/dashboard')
-    } catch (apiError) {
-      // Fallback to local user store validation
-      console.log('API authentication failed, falling back to local store')
-      console.log('Total users in store:', users.length)
-      console.log('User emails:', users.map(u => u.email))
-
-      if (email && password) {
-        // Find user in team store (case-insensitive)
-        const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase())
-
-        if (!user) {
-          console.log('User not found for email:', email)
-          setError('Invalid email or password')
-          setLoading(false)
-          return
-        }
-
-        console.log('User found:', user.email, '- Status:', user.status)
-
-        // Check if user is active
-        if (user.status !== 'active') {
-          setError('Your account has been deactivated. Please contact an administrator.')
-          setLoading(false)
-          return
-        }
-
-        // Validate password
-        if (user.password !== password) {
-          setError('Invalid email or password')
-          setLoading(false)
-          return
-        }
-
-        // Login successful
-        login(
-          {
-            id: user.id,
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            avatarUrl: user.avatarUrl,
-            roles: user.roles,
-            teams: user.teams,
-          },
-          'mock-jwt-token'
-        )
-
-        // Record login activity
-        recordLogin(user.id)
-
-        navigate('/dashboard')
-      } else {
-        setError('Please enter email and password')
+      try {
+        await loadAll()
+      } catch {
+        // Ignore load failures here; user can still sign in
       }
+      recordLogin(data.user.id)
+      navigate('/dashboard')
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.detail || 'Invalid email or password'
+      setError(message)
     } finally {
       setLoading(false)
     }

@@ -380,6 +380,8 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
             onClose()
           } : undefined}
           isAdmin={hasRole('admin')}
+          teamMembers={teamMembers}
+          teamOptions={teamOptions}
         />
       )}
 
@@ -475,6 +477,8 @@ function OverviewTab({
   onStatusChange,
   onDelete,
   isAdmin,
+  teamMembers,
+  teamOptions,
 }: {
   project: ProjectDetailModalProps['project']
   stats: { completedTasks: number; inProgressTasks: number; todoTasks: number; totalTasks: number }
@@ -482,6 +486,8 @@ function OverviewTab({
   onStatusChange?: (status: ProjectStatus) => void
   onDelete?: (reason: string) => void
   isAdmin: boolean
+  teamMembers: { id: string; name: string }[]
+  teamOptions: string[]
 }) {
   const [showRiskDropdown, setShowRiskDropdown] = useState(false)
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)

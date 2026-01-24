@@ -235,6 +235,7 @@ async def verify_password_db(db: AsyncSession, plain_password: str, hashed_passw
 
 
 async def ensure_seed_data(db: AsyncSession) -> None:
+    await migrate_legacy_users(db)
     # Seed roles if missing
     existing_roles = await db.execute(select(Role.name))
     existing_role_names = set(existing_roles.scalars().all())
@@ -289,6 +290,66 @@ async def ensure_seed_data(db: AsyncSession) -> None:
                 )
             )
 
+    await db.commit()
+
+
+async def migrate_legacy_users(db: AsyncSession) -> None:
+    # Migrate from legacy public.users table if present.
+    result = await db.execute(text("SELECT to_regclass('public.users')"))
+    if not result.scalar():
+        return
+
+    columns_result = await db.execute(
+        text(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'users'
+            """
+        )
+    )
+    columns = {row for row in columns_result.scalars().all()}
+
+    if "email" not in columns:
+        return
+
+    if "password_hash" in columns:
+        password_expr = "password_hash"
+    elif "password" in columns:
+        password_expr = "password"
+    else:
+        return
+
+    first_expr = "first_name" if "first_name" in columns else "'User'"
+    last_expr = "last_name" if "last_name" in columns else "''"
+    is_active_expr = "is_active" if "is_active" in columns else "TRUE"
+    avatar_expr = "avatar_url" if "avatar_url" in columns else "NULL"
+
+    insert_columns = ["email", "password_hash", "first_name", "last_name", "is_active", "avatar_url"]
+    select_columns = [
+        "LOWER(TRIM(email))",
+        password_expr,
+        first_expr,
+        last_expr,
+        is_active_expr,
+        avatar_expr,
+    ]
+
+    if "id" in columns:
+        insert_columns.insert(0, "id")
+        select_columns.insert(0, "id")
+
+    await db.execute(
+        text(
+            f"""
+            INSERT INTO auth.users ({", ".join(insert_columns)})
+            SELECT {", ".join(select_columns)}
+            FROM public.users
+            WHERE email IS NOT NULL AND TRIM(email) <> ''
+            ON CONFLICT (email) DO NOTHING
+            """
+        )
+    )
     await db.commit()
 
 

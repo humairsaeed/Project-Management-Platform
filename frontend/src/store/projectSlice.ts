@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
+import { persist } from 'zustand/middleware'
 import userDataService from '../services/userDataService'
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'

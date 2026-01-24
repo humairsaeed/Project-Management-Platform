@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useProjectStore } from '../store/projectSlice'
 import { useAuthStore } from '../store/authSlice'
 
-let syncTimeout: NodeJS.Timeout | null = null
+let syncTimeout: ReturnType<typeof setTimeout> | null = null
 
 /**
  * Hook to sync project data with backend

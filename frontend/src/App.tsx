@@ -8,9 +8,13 @@ import SettingsPage from './pages/SettingsPage'
 import ProfilePage from './pages/ProfilePage'
 import LoginPage from './pages/LoginPage'
 import { useAuthStore } from './store/authSlice'
+import { useBackendSync } from './hooks/useBackendSync'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+
+  // Sync projects/tasks with backend
+  useBackendSync()
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />

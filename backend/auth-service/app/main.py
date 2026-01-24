@@ -466,6 +466,9 @@ async def startup() -> None:
         await conn.execute(
             text("ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500)")
         )
+        await conn.execute(
+            text("ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS user_data JSONB")
+        )
     async with AsyncSessionLocal() as db:
         try:
             await ensure_seed_data(db)
@@ -579,6 +582,33 @@ async def get_me(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return await build_user_response(db, user)
+
+
+@app.get("/api/v1/auth/me/data")
+async def get_user_data(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get current user's synced data (projects, tasks, etc.)."""
+    user = await db.get(User, current_user.id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return {"data": user.user_data or {}}
+
+
+@app.put("/api/v1/auth/me/data")
+async def update_user_data(
+    data: dict,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update current user's synced data (projects, tasks, etc.)."""
+    user = await db.get(User, current_user.id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user.user_data = data
+    await db.commit()
+    return {"message": "User data updated successfully"}
 
 
 @app.get("/api/v1/auth/users", response_model=list[UserResponse], response_model_by_alias=False)

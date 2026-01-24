@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import userDataService from '../services/userDataService'
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
 export type ProjectStatus = 'active' | 'completed' | 'on_hold' | 'planning' | 'cancelled'
@@ -106,6 +107,8 @@ interface ProjectState {
   getActiveProjects: () => Project[]
   getCompletedProjects: () => Project[]
   getDeletedProjects: () => Project[]
+  loadFromBackend: () => Promise<void>
+  saveToBackend: () => Promise<void>
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -319,10 +322,36 @@ export const useProjectStore = create<ProjectState>()(
       getDeletedProjects: () => {
         return get().projects.filter((p) => p.isDeleted)
       },
+
+      loadFromBackend: async () => {
+        try {
+          const userData = await userDataService.loadUserData()
+          if (userData.projects || userData.milestones) {
+            set({
+              projects: userData.projects || initialProjects,
+              milestones: userData.milestones || initialMilestones,
+            })
+          }
+        } catch (error) {
+          console.error('Failed to load from backend:', error)
+        }
+      },
+
+      saveToBackend: async () => {
+        try {
+          const state = get()
+          await userDataService.saveUserData({
+            projects: state.projects,
+            milestones: state.milestones,
+          })
+        } catch (error) {
+          console.error('Failed to save to backend:', error)
+        }
+      },
     }),
     {
       name: 'project-storage',
-      version: 1,
+      version: 2,
       partialize: (state) => ({
         projects: state.projects,
         milestones: state.milestones,
@@ -330,10 +359,10 @@ export const useProjectStore = create<ProjectState>()(
       migrate: (persistedState: any, version: number) => {
         let state = persistedState as Pick<ProjectState, 'projects' | 'milestones'>
 
-        // Migration to version 1: PRODUCTION RESET
-        // Clear all demo projects and milestones
-        if (version === 0) {
-          console.log('Migrating projects to production version 1: Clearing demo data')
+        // Migration to version 2: Backend Sync - Clear localStorage, will load from backend
+        if (version < 2) {
+          console.log(`Migrating projects from version ${version} to version 2: Switching to backend storage`)
+          // Clear localStorage data, will be loaded from backend on mount
           state = {
             projects: initialProjects,
             milestones: initialMilestones,

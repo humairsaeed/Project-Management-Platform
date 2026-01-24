@@ -155,6 +155,17 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
+async def verify_password_db(db: AsyncSession, plain_password: str, hashed_password: str) -> bool:
+    try:
+        result = await db.execute(
+            text("SELECT crypt(:plain, :hash) = :hash AS ok"),
+            {"plain": plain_password, "hash": hashed_password},
+        )
+        return bool(result.scalar())
+    except Exception:
+        return False
+
+
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -252,6 +263,11 @@ async def require_admin(current_user: CurrentUser = Depends(get_current_user)) -
 @app.on_event("startup")
 async def startup() -> None:
     async with engine.begin() as conn:
+        try:
+            await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "pgcrypto"'))
+        except Exception:
+            # Extension creation can fail if the DB user lacks privileges.
+            pass
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS auth"))
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(
@@ -285,6 +301,9 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
                 user.password_hash = get_password_hash(request.password)
                 await db.commit()
                 is_valid = True
+
+    if not is_valid and _is_probably_bcrypt(stored_hash):
+        is_valid = await verify_password_db(db, request.password, stored_hash)
 
     if not is_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
@@ -489,7 +508,21 @@ async def change_password(
     if current_user.id == user_id:
         if not payload.currentPassword:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password required")
-        if not verify_password(payload.currentPassword, user.password_hash):
+        stored_hash = _normalize_hash(user.password_hash)
+        is_valid = False
+        if stored_hash:
+            if _is_probably_bcrypt(stored_hash):
+                try:
+                    is_valid = verify_password(payload.currentPassword, stored_hash)
+                except Exception:
+                    is_valid = False
+            else:
+                is_valid = stored_hash == payload.currentPassword
+
+            if not is_valid and _is_probably_bcrypt(stored_hash):
+                is_valid = await verify_password_db(db, payload.currentPassword, stored_hash)
+
+        if not is_valid:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
     user.password_hash = get_password_hash(payload.newPassword)

@@ -264,7 +264,7 @@ async def startup() -> None:
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Authenticate user and return JWT tokens."""
     email = request.email.lower().strip()
-    result = await db.execute(select(User).where(func.lower(func.trim(User.email)) == email))
+    result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
     if not user:

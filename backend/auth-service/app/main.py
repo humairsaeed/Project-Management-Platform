@@ -507,17 +507,6 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
                 is_valid = True
 
     if not is_valid:
-        # Allow bootstrap admin login even if legacy bcrypt verification fails.
-        if (
-            user.email.lower().strip() == BOOTSTRAP_ADMIN_EMAIL.lower().strip()
-            and request.password == BOOTSTRAP_ADMIN_PASSWORD
-        ):
-            user.password_hash = get_password_hash(request.password)
-            user.is_active = True
-            await db.commit()
-            is_valid = True
-
-    if not is_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     if not user.is_active:

@@ -14,7 +14,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, Field, ConfigDict
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -143,6 +143,14 @@ class CurrentUser(BaseModel):
     teams: list[UUID]
 
 
+def _normalize_hash(value: Optional[str]) -> str:
+    return (value or "").strip()
+
+
+def _is_probably_bcrypt(hash_value: str) -> bool:
+    return hash_value.startswith("$2a$") or hash_value.startswith("$2b$") or hash_value.startswith("$2y$")
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
@@ -256,10 +264,29 @@ async def startup() -> None:
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Authenticate user and return JWT tokens."""
     email = request.email.lower().strip()
-    result = await db.execute(select(User).where(User.email == email))
+    result = await db.execute(select(User).where(func.lower(func.trim(User.email)) == email))
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(request.password, user.password_hash):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    stored_hash = _normalize_hash(user.password_hash)
+    is_valid = False
+
+    if stored_hash:
+        if _is_probably_bcrypt(stored_hash):
+            try:
+                is_valid = verify_password(request.password, stored_hash)
+            except Exception:
+                is_valid = False
+        else:
+            # Legacy/plaintext fallback for manually inserted users.
+            if stored_hash == request.password:
+                user.password_hash = get_password_hash(request.password)
+                await db.commit()
+                is_valid = True
+
+    if not is_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     if not user.is_active:

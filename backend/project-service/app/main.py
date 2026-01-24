@@ -244,6 +244,17 @@ async def create_project(project_data: SimpleProjectCreate, db: AsyncSession = D
     await db.commit()
     await db.refresh(project)
 
+    # Automatically create project assignment for the project manager
+    if project.manager_user_id:
+        assignment = ProjectAssignment(
+            project_id=project.id,
+            user_id=project.manager_user_id,
+            role="manager",
+            assigned_by=project.manager_user_id,
+        )
+        db.add(assignment)
+        await db.commit()
+
     return {
         "id": str(project.id),
         "name": project.name,

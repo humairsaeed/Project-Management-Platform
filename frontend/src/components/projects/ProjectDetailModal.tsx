@@ -21,6 +21,7 @@ import Avatar, { AvatarGroup } from '../common/Avatar'
 import { useProjectStore, type TaskWithAssignees as StoreTaskWithAssignees, type RiskLevel, type ProjectStatus, type Priority, type AuditLogEntry } from '../../store/projectSlice'
 import { useAuthStore } from '../../store/authSlice'
 import { useTeamStore } from '../../store/teamSlice'
+import projectService from '../../services/projectService'
 
 interface ProjectDetailModalProps {
   project: {
@@ -153,7 +154,7 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
     storeAddAuditLog(project.id, newLog)
   }, [project.id, storeAddAuditLog])
 
-  const handleTaskUpdate = (taskId: string, updates: Partial<TaskWithAssignees>) => {
+  const handleTaskUpdate = async (taskId: string, updates: Partial<TaskWithAssignees>) => {
     const oldTask = tasks.find((t) => t.id === taskId)
     if (!oldTask) return
 
@@ -188,21 +189,38 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
       newValue.endDate = updates.endDate
     }
 
-    const newTasks = tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t))
-    setTasks(newTasks)
+    try {
+      // Call backend API to update task
+      await projectService.updateTask(taskId, {
+        title: updates.title,
+        status: updates.status,
+        completion_percentage: updates.progress,
+        start_date: updates.startDate || null,
+        due_date: updates.endDate || null,
+        assigned_to_user_id: updates.assignees?.[0] || null,
+      })
 
-    // Add audit log if there were changes
-    if (changedFields.length > 0) {
-      const action = changedFields.includes('status') ? 'STATUS_CHANGE' : 'UPDATE'
-      addAuditLog(action, oldTask.title, oldValue, newValue, changedFields)
+      // Update local state
+      const newTasks = tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t))
+      setTasks(newTasks)
+
+      // Add audit log if there were changes
+      if (changedFields.length > 0) {
+        const action = changedFields.includes('status') ? 'STATUS_CHANGE' : 'UPDATE'
+        addAuditLog(action, oldTask.title, oldValue, newValue, changedFields)
+      }
+
+      // Update store
+      updateProjectTasks(project.id, newTasks as StoreTaskWithAssignees[])
+
+      // Show save message
+      setSaveMessage('Changes saved!')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (error) {
+      console.error('Failed to update task:', error)
+      setSaveMessage('Failed to save changes')
+      setTimeout(() => setSaveMessage(null), 2000)
     }
-
-    // Auto-save to store
-    updateProjectTasks(project.id, newTasks as StoreTaskWithAssignees[])
-
-    // Show save message
-    setSaveMessage('Changes saved!')
-    setTimeout(() => setSaveMessage(null), 2000)
   }
 
   const handleTaskReorder = (draggedId: string, targetId: string) => {
@@ -224,31 +242,61 @@ export default function ProjectDetailModal({ project, onClose, onDelete }: Proje
     setTimeout(() => setSaveMessage(null), 2000)
   }
 
-  const handleTaskAdd = (newTask: TaskWithAssignees) => {
-    const newTasks = [...tasks, newTask]
-    setTasks(newTasks)
+  const handleTaskAdd = async (newTask: TaskWithAssignees) => {
+    try {
+      // Call backend API to create task
+      const createdTask = await projectService.createTask(project.id, {
+        title: newTask.title,
+        description: null,
+        status: newTask.status,
+        priority: 'medium',
+        start_date: newTask.startDate || null,
+        due_date: newTask.endDate || null,
+        completion_percentage: newTask.progress || 0,
+        assigned_to_user_id: newTask.assignees?.[0] || null,
+      })
 
-    addAuditLog('CREATE', newTask.title, null, { title: newTask.title, status: newTask.status }, [])
+      // Update local state with the created task
+      const taskWithId = { ...newTask, id: createdTask.id }
+      const newTasks = [...tasks, taskWithId]
+      setTasks(newTasks)
 
-    // Auto-save to store
-    updateProjectTasks(project.id, newTasks as StoreTaskWithAssignees[])
-    setSaveMessage('Task added!')
-    setTimeout(() => setSaveMessage(null), 2000)
+      addAuditLog('CREATE', newTask.title, null, { title: newTask.title, status: newTask.status }, [])
+
+      // Update store
+      updateProjectTasks(project.id, newTasks as StoreTaskWithAssignees[])
+      setSaveMessage('Task added!')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (error) {
+      console.error('Failed to create task:', error)
+      setSaveMessage('Failed to add task')
+      setTimeout(() => setSaveMessage(null), 2000)
+    }
   }
 
-  const handleTaskDelete = (taskId: string) => {
+  const handleTaskDelete = async (taskId: string) => {
     const deletedTask = tasks.find((t) => t.id === taskId)
     if (!deletedTask) return
 
-    const newTasks = tasks.filter((t) => t.id !== taskId)
-    setTasks(newTasks)
+    try {
+      // Call backend API to delete task
+      await projectService.deleteTask(taskId)
 
-    addAuditLog('DELETE', deletedTask.title, { title: deletedTask.title, status: deletedTask.status }, null, [])
+      // Update local state
+      const newTasks = tasks.filter((t) => t.id !== taskId)
+      setTasks(newTasks)
 
-    // Auto-save to store
-    updateProjectTasks(project.id, newTasks as StoreTaskWithAssignees[])
-    setSaveMessage('Task deleted!')
-    setTimeout(() => setSaveMessage(null), 2000)
+      addAuditLog('DELETE', deletedTask.title, { title: deletedTask.title, status: deletedTask.status }, null, [])
+
+      // Update store
+      updateProjectTasks(project.id, newTasks as StoreTaskWithAssignees[])
+      setSaveMessage('Task deleted!')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (error) {
+      console.error('Failed to delete task:', error)
+      setSaveMessage('Failed to delete task')
+      setTimeout(() => setSaveMessage(null), 2000)
+    }
   }
 
   const handleRiskLevelChange = (newRiskLevel: RiskLevel) => {

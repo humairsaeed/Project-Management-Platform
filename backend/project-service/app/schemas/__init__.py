@@ -38,6 +38,10 @@ from .timeline import (
     TimelineResponse,
     GanttData,
 )
+from .assignment import (
+    ProjectAssignmentCreate,
+    ProjectAssignmentResponse,
+)
 
 __all__ = [
     # Project schemas
@@ -69,4 +73,7 @@ __all__ = [
     "TimelineTask",
     "TimelineResponse",
     "GanttData",
+    # Assignment schemas
+    "ProjectAssignmentCreate",
+    "ProjectAssignmentResponse",
 ]

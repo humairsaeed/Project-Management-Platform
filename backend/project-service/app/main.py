@@ -4,31 +4,103 @@ Project Service - FastAPI Application Entry Point
 from __future__ import annotations
 
 import os
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from .db import get_db
 from .models import Milestone, Project, ProjectAssignment, Task
-from .schemas import (
-    MilestoneCreate,
-    MilestoneResponse,
-    MilestoneUpdate,
-    ProjectAssignmentCreate,
-    ProjectAssignmentResponse,
-    ProjectCreate,
-    ProjectListResponse,
-    ProjectResponse,
-    ProjectUpdate,
-    TaskCreate,
-    TaskResponse,
-    TaskUpdate,
-)
+
+
+# Simple inline schemas matching actual database structure
+class SimpleProjectCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    status: str = "planning"
+    priority: str = "medium"
+    risk_level: str = "low"
+    completion_percentage: int = 0
+    owner_team_id: Optional[UUID] = None
+    manager_user_id: Optional[UUID] = None
+    target_start_date: Optional[date] = None
+    target_end_date: Optional[date] = None
+
+
+class SimpleProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    risk_level: Optional[str] = None
+    completion_percentage: Optional[int] = None
+    owner_team_id: Optional[UUID] = None
+    manager_user_id: Optional[UUID] = None
+    target_start_date: Optional[date] = None
+    target_end_date: Optional[date] = None
+    actual_start_date: Optional[date] = None
+    actual_end_date: Optional[date] = None
+
+
+class SimpleTaskCreate(BaseModel):
+    project_id: UUID
+    parent_task_id: Optional[UUID] = None
+    title: str
+    description: Optional[str] = None
+    status: str = "todo"
+    priority: str = "medium"
+    assigned_to_user_id: Optional[UUID] = None
+    estimated_hours: Optional[Decimal] = None
+    actual_hours: Optional[Decimal] = None
+    completion_percentage: int = 0
+    position: int = 0
+    start_date: Optional[date] = None
+    due_date: Optional[date] = None
+
+
+class SimpleTaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    assigned_to_user_id: Optional[UUID] = None
+    estimated_hours: Optional[Decimal] = None
+    actual_hours: Optional[Decimal] = None
+    completion_percentage: Optional[int] = None
+    position: Optional[int] = None
+    start_date: Optional[date] = None
+    due_date: Optional[date] = None
+    completed_at: Optional[datetime] = None
+
+
+class SimpleMilestoneCreate(BaseModel):
+    project_id: UUID
+    name: str
+    description: Optional[str] = None
+    target_date: date
+    status: str = "pending"
+
+
+class SimpleMilestoneUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    target_date: Optional[date] = None
+    actual_date: Optional[date] = None
+    status: Optional[str] = None
+
+
+class SimpleAssignmentCreate(BaseModel):
+    user_id: UUID
+    role: str = "member"
+    project_id: UUID
+    assigned_by: Optional[UUID] = None
 
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
 
@@ -113,7 +185,7 @@ async def list_projects(
     return {"data": project_list, "total": len(project_list)}
 
 
-@app.get("/api/v1/projects/{project_id}", response_model=ProjectResponse)
+@app.get("/api/v1/projects/{project_id}")
 async def get_project(project_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get project details by ID with tasks, milestones, and assignments."""
     query = (
@@ -131,36 +203,67 @@ async def get_project(project_id: UUID, db: AsyncSession = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    return project
+    return {
+        "id": str(project.id),
+        "name": project.name,
+        "description": project.description,
+        "status": project.status,
+        "priority": project.priority,
+        "risk_level": project.risk_level,
+        "completion_percentage": project.completion_percentage,
+        "owner_team_id": str(project.owner_team_id) if project.owner_team_id else None,
+        "manager_user_id": str(project.manager_user_id) if project.manager_user_id else None,
+        "target_start_date": str(project.target_start_date) if project.target_start_date else None,
+        "target_end_date": str(project.target_end_date) if project.target_end_date else None,
+        "actual_start_date": str(project.actual_start_date) if project.actual_start_date else None,
+        "actual_end_date": str(project.actual_end_date) if project.actual_end_date else None,
+        "created_at": project.created_at.isoformat(),
+        "updated_at": project.updated_at.isoformat(),
+        "tasks": [
+            {
+                "id": str(t.id),
+                "title": t.title,
+                "status": t.status,
+                "assigned_to_user_id": str(t.assigned_to_user_id) if t.assigned_to_user_id else None,
+                "completion_percentage": t.completion_percentage,
+                "start_date": str(t.start_date) if t.start_date else None,
+                "due_date": str(t.due_date) if t.due_date else None,
+            }
+            for t in project.tasks
+        ],
+        "milestones": [{"id": str(m.id), "name": m.name, "target_date": str(m.target_date)} for m in project.milestones],
+        "assignments": [{"id": str(a.id), "user_id": str(a.user_id), "role": a.role} for a in project.assignments],
+    }
 
 
-@app.post("/api/v1/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
-async def create_project(project_data: ProjectCreate, db: AsyncSession = Depends(get_db)):
+@app.post("/api/v1/projects", status_code=status.HTTP_201_CREATED)
+async def create_project(project_data: SimpleProjectCreate, db: AsyncSession = Depends(get_db)):
     """Create a new project."""
     project = Project(**project_data.model_dump())
     db.add(project)
     await db.commit()
     await db.refresh(project)
 
-    # Load relationships
-    query = (
-        select(Project)
-        .where(Project.id == project.id)
-        .options(
-            selectinload(Project.tasks),
-            selectinload(Project.milestones),
-            selectinload(Project.assignments),
-        )
-    )
-    result = await db.execute(query)
-    project = result.scalar_one()
+    return {
+        "id": str(project.id),
+        "name": project.name,
+        "description": project.description,
+        "status": project.status,
+        "priority": project.priority,
+        "risk_level": project.risk_level,
+        "completion_percentage": project.completion_percentage,
+        "owner_team_id": str(project.owner_team_id) if project.owner_team_id else None,
+        "manager_user_id": str(project.manager_user_id) if project.manager_user_id else None,
+        "target_start_date": str(project.target_start_date) if project.target_start_date else None,
+        "target_end_date": str(project.target_end_date) if project.target_end_date else None,
+        "created_at": project.created_at.isoformat(),
+        "updated_at": project.updated_at.isoformat(),
+    }
 
-    return project
 
-
-@app.patch("/api/v1/projects/{project_id}", response_model=ProjectResponse)
+@app.patch("/api/v1/projects/{project_id}")
 async def update_project(
-    project_id: UUID, project_data: ProjectUpdate, db: AsyncSession = Depends(get_db)
+    project_id: UUID, project_data: SimpleProjectUpdate, db: AsyncSession = Depends(get_db)
 ):
     """Update a project."""
     query = select(Project).where(Project.id == project_id)
@@ -177,20 +280,23 @@ async def update_project(
     await db.commit()
     await db.refresh(project)
 
-    # Load relationships
-    query = (
-        select(Project)
-        .where(Project.id == project.id)
-        .options(
-            selectinload(Project.tasks),
-            selectinload(Project.milestones),
-            selectinload(Project.assignments),
-        )
-    )
-    result = await db.execute(query)
-    project = result.scalar_one()
-
-    return project
+    return {
+        "id": str(project.id),
+        "name": project.name,
+        "description": project.description,
+        "status": project.status,
+        "priority": project.priority,
+        "risk_level": project.risk_level,
+        "completion_percentage": project.completion_percentage,
+        "owner_team_id": str(project.owner_team_id) if project.owner_team_id else None,
+        "manager_user_id": str(project.manager_user_id) if project.manager_user_id else None,
+        "target_start_date": str(project.target_start_date) if project.target_start_date else None,
+        "target_end_date": str(project.target_end_date) if project.target_end_date else None,
+        "actual_start_date": str(project.actual_start_date) if project.actual_start_date else None,
+        "actual_end_date": str(project.actual_end_date) if project.actual_end_date else None,
+        "created_at": project.created_at.isoformat(),
+        "updated_at": project.updated_at.isoformat(),
+    }
 
 
 @app.delete("/api/v1/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -216,12 +322,11 @@ async def delete_project(project_id: UUID, db: AsyncSession = Depends(get_db)):
 
 @app.post(
     "/api/v1/projects/{project_id}/assignments",
-    response_model=ProjectAssignmentResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def assign_user_to_project(
     project_id: UUID,
-    assignment_data: ProjectAssignmentCreate,
+    assignment_data: SimpleAssignmentCreate,
     db: AsyncSession = Depends(get_db),
 ):
     """Assign a user to a project."""
@@ -245,17 +350,34 @@ async def assign_user_to_project(
             status_code=status.HTTP_400_BAD_REQUEST, detail="User already assigned to project"
         )
 
-    return assignment
+    return {
+        "id": str(assignment.id),
+        "project_id": str(assignment.project_id),
+        "user_id": str(assignment.user_id),
+        "role": assignment.role,
+        "assigned_at": assignment.assigned_at.isoformat(),
+        "assigned_by": str(assignment.assigned_by) if assignment.assigned_by else None,
+    }
 
 
-@app.get("/api/v1/projects/{project_id}/assignments", response_model=list[ProjectAssignmentResponse])
+@app.get("/api/v1/projects/{project_id}/assignments")
 async def get_project_assignments(project_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get all user assignments for a project."""
     query = select(ProjectAssignment).where(ProjectAssignment.project_id == project_id)
     result = await db.execute(query)
     assignments = result.scalars().all()
 
-    return assignments
+    return [
+        {
+            "id": str(a.id),
+            "project_id": str(a.project_id),
+            "user_id": str(a.user_id),
+            "role": a.role,
+            "assigned_at": a.assigned_at.isoformat(),
+            "assigned_by": str(a.assigned_by) if a.assigned_by else None,
+        }
+        for a in assignments
+    ]
 
 
 @app.delete(
@@ -296,7 +418,7 @@ async def get_project_tasks(project_id: UUID, db: AsyncSession = Depends(get_db)
     return {"data": tasks, "total": len(tasks)}
 
 
-@app.get("/api/v1/tasks/{task_id}", response_model=TaskResponse)
+@app.get("/api/v1/tasks/{task_id}")
 async def get_task(task_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get task details by ID."""
     query = select(Task).where(Task.id == task_id)
@@ -306,16 +428,29 @@ async def get_task(task_id: UUID, db: AsyncSession = Depends(get_db)):
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
-    return task
+    return {
+        "id": str(task.id),
+        "project_id": str(task.project_id),
+        "title": task.title,
+        "description": task.description,
+        "status": task.status,
+        "priority": task.priority,
+        "assigned_to_user_id": str(task.assigned_to_user_id) if task.assigned_to_user_id else None,
+        "completion_percentage": task.completion_percentage,
+        "start_date": str(task.start_date) if task.start_date else None,
+        "due_date": str(task.due_date) if task.due_date else None,
+        "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+        "created_at": task.created_at.isoformat(),
+        "updated_at": task.updated_at.isoformat(),
+    }
 
 
 @app.post(
     "/api/v1/projects/{project_id}/tasks",
-    response_model=TaskResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_task(
-    project_id: UUID, task_data: TaskCreate, db: AsyncSession = Depends(get_db)
+    project_id: UUID, task_data: SimpleTaskCreate, db: AsyncSession = Depends(get_db)
 ):
     """Create a new task in a project."""
     # Check if project exists
@@ -331,11 +466,24 @@ async def create_task(
     await db.commit()
     await db.refresh(task)
 
-    return task
+    return {
+        "id": str(task.id),
+        "project_id": str(task.project_id),
+        "title": task.title,
+        "description": task.description,
+        "status": task.status,
+        "priority": task.priority,
+        "assigned_to_user_id": str(task.assigned_to_user_id) if task.assigned_to_user_id else None,
+        "completion_percentage": task.completion_percentage,
+        "start_date": str(task.start_date) if task.start_date else None,
+        "due_date": str(task.due_date) if task.due_date else None,
+        "created_at": task.created_at.isoformat(),
+        "updated_at": task.updated_at.isoformat(),
+    }
 
 
-@app.patch("/api/v1/tasks/{task_id}", response_model=TaskResponse)
-async def update_task(task_id: UUID, task_data: TaskUpdate, db: AsyncSession = Depends(get_db)):
+@app.patch("/api/v1/tasks/{task_id}")
+async def update_task(task_id: UUID, task_data: SimpleTaskUpdate, db: AsyncSession = Depends(get_db)):
     """Update a task."""
     query = select(Task).where(Task.id == task_id)
     result = await db.execute(query)
@@ -351,7 +499,21 @@ async def update_task(task_id: UUID, task_data: TaskUpdate, db: AsyncSession = D
     await db.commit()
     await db.refresh(task)
 
-    return task
+    return {
+        "id": str(task.id),
+        "project_id": str(task.project_id),
+        "title": task.title,
+        "description": task.description,
+        "status": task.status,
+        "priority": task.priority,
+        "assigned_to_user_id": str(task.assigned_to_user_id) if task.assigned_to_user_id else None,
+        "completion_percentage": task.completion_percentage,
+        "start_date": str(task.start_date) if task.start_date else None,
+        "due_date": str(task.due_date) if task.due_date else None,
+        "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+        "created_at": task.created_at.isoformat(),
+        "updated_at": task.updated_at.isoformat(),
+    }
 
 
 @app.delete("/api/v1/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -375,23 +537,35 @@ async def delete_task(task_id: UUID, db: AsyncSession = Depends(get_db)):
 # ============================================================================
 
 
-@app.get("/api/v1/projects/{project_id}/milestones", response_model=list[MilestoneResponse])
+@app.get("/api/v1/projects/{project_id}/milestones")
 async def get_project_milestones(project_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get all milestones for a project."""
     query = select(Milestone).where(Milestone.project_id == project_id).order_by(Milestone.target_date)
     result = await db.execute(query)
     milestones = result.scalars().all()
 
-    return milestones
+    return [
+        {
+            "id": str(m.id),
+            "project_id": str(m.project_id),
+            "name": m.name,
+            "description": m.description,
+            "target_date": str(m.target_date),
+            "actual_date": str(m.actual_date) if m.actual_date else None,
+            "status": m.status,
+            "created_at": m.created_at.isoformat(),
+            "updated_at": m.updated_at.isoformat(),
+        }
+        for m in milestones
+    ]
 
 
 @app.post(
     "/api/v1/projects/{project_id}/milestones",
-    response_model=MilestoneResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_milestone(
-    project_id: UUID, milestone_data: MilestoneCreate, db: AsyncSession = Depends(get_db)
+    project_id: UUID, milestone_data: SimpleMilestoneCreate, db: AsyncSession = Depends(get_db)
 ):
     """Create a new milestone for a project."""
     # Check if project exists
@@ -407,12 +581,22 @@ async def create_milestone(
     await db.commit()
     await db.refresh(milestone)
 
-    return milestone
+    return {
+        "id": str(milestone.id),
+        "project_id": str(milestone.project_id),
+        "name": milestone.name,
+        "description": milestone.description,
+        "target_date": str(milestone.target_date),
+        "actual_date": str(milestone.actual_date) if milestone.actual_date else None,
+        "status": milestone.status,
+        "created_at": milestone.created_at.isoformat(),
+        "updated_at": milestone.updated_at.isoformat(),
+    }
 
 
-@app.patch("/api/v1/milestones/{milestone_id}", response_model=MilestoneResponse)
+@app.patch("/api/v1/milestones/{milestone_id}")
 async def update_milestone(
-    milestone_id: UUID, milestone_data: MilestoneUpdate, db: AsyncSession = Depends(get_db)
+    milestone_id: UUID, milestone_data: SimpleMilestoneUpdate, db: AsyncSession = Depends(get_db)
 ):
     """Update a milestone."""
     query = select(Milestone).where(Milestone.id == milestone_id)
@@ -429,7 +613,17 @@ async def update_milestone(
     await db.commit()
     await db.refresh(milestone)
 
-    return milestone
+    return {
+        "id": str(milestone.id),
+        "project_id": str(milestone.project_id),
+        "name": milestone.name,
+        "description": milestone.description,
+        "target_date": str(milestone.target_date),
+        "actual_date": str(milestone.actual_date) if milestone.actual_date else None,
+        "status": milestone.status,
+        "created_at": milestone.created_at.isoformat(),
+        "updated_at": milestone.updated_at.isoformat(),
+    }
 
 
 @app.delete("/api/v1/milestones/{milestone_id}", status_code=status.HTTP_204_NO_CONTENT)
